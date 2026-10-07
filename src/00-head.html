@@ -21,6 +21,8 @@
   #scream{position:fixed;left:0;right:0;top:44%;text-align:center;font-size:clamp(24px,6vw,96px);white-space:nowrap;font-weight:900;letter-spacing:.05em;color:#fff3c2;-webkit-text-stroke:3px #6a1000;text-shadow:0 0 20px #ff7a1a,0 5px 0 #4a0b00;pointer-events:none;opacity:0}
   #scream.on{animation:scream 1.2s ease-out forwards}
   @keyframes scream{0%{opacity:0;transform:scale(.4) rotate(-6deg)}10%{opacity:1;transform:scale(1.3) rotate(4deg)}20%{transform:scale(1) rotate(-3deg)}35%{transform:scale(1.08) rotate(2deg)}80%{opacity:1}100%{opacity:0;transform:scale(1.15) translateY(-20px)}}
+  #oops{position:fixed;left:0;right:0;top:46%;text-align:center;font-size:clamp(22px,5vw,80px);white-space:nowrap;font-weight:900;letter-spacing:.05em;color:#fff3c2;-webkit-text-stroke:3px #4a2a00;text-shadow:0 0 16px #ffb04a,0 5px 0 #3a1c00;pointer-events:none;opacity:0}
+  #oops.on{animation:scream .9s ease-out forwards}
   #mute{position:fixed;right:14px;top:18px;font-size:13px;opacity:.7;pointer-events:none;text-shadow:0 1px 6px #000}
   #lavaGlow{position:fixed;left:0;right:0;bottom:0;height:42%;pointer-events:none;opacity:0;background:linear-gradient(to top,rgba(255,80,10,.85),rgba(255,60,10,.35) 45%,rgba(255,50,0,0))}
   #heat{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 55%,rgba(255,60,0,0) 45%,rgba(255,50,0,.5) 100%)}
@@ -45,7 +47,7 @@
 <div id="lavaGlow"></div><div id="heat"></div>
 <div id="hud"><div id="dist">距離：0m</div><div id="magma"><span>マグマ</span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="magmaGap">--m</span></div></div>
 <div id="gameover"><div class="go">GAME OVER</div><div class="sub">火山から逃げ切れなかった……</div><div class="dist" id="overDist">逃走距離：0m</div><div class="again">[R] もう一度逃げる</div></div>
-<div id="boom">ドゴォォォン！！！</div><div id="scream">ギャーー！！</div><div id="flash"></div><div id="mute">♪ ON (M)</div>
+<div id="boom">ドゴォォォン！！！</div><div id="scream">ギャーー！！</div><div id="oops">うわっ！</div><div id="flash"></div><div id="mute">♪ ON (M)</div>
 <div id="hint">← → / A D 移動 ・ Space ジャンプ ・ M 音ON/OFF</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>

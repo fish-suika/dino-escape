@@ -9,10 +9,12 @@ cat src/00-head.html \
     src/25-volcano-logic.js \
     src/26-rock-logic.js \
     src/27-magma-logic.js \
+    src/28-obstacle-logic.js \
     src/30-world.js \
     src/35-volcano.js \
     src/37-magma.js \
     src/36-rocks.js \
+    src/38-obstacles.js \
     src/40-dino.js \
     src/50-input.js \
     src/60-sound.js \
@@ -27,6 +29,7 @@ cat src/verify-head.html \
     src/25-volcano-logic.js \
     src/26-rock-logic.js \
     src/27-magma-logic.js \
+    src/28-obstacle-logic.js \
     src/verify-tests.js \
     src/99-tail.html > verify.html
 

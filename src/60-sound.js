@@ -136,6 +136,17 @@ function sndScream() {
   o.connect(f); o.start(t); l.start(t); o.stop(t + 0.95); l.stop(t + 0.95);
 }
 
+// 障害物にぶつかった「ドン！」：strength 0〜1（クレーターは弱く、マグマ溜まりはジュッと混ざる）
+function sndThud(strength, sizzle) {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, v = 0.5 + 0.5 * strength;
+  const og = c.createGain(); og.gain.setValueAtTime(0.9 * v, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.32); og.connect(SND.master);
+  const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.25); o.connect(og); o.start(t); o.stop(t + 0.35);
+  const ng = c.createGain(); ng.gain.setValueAtTime(0.5 * v, t); ng.gain.exponentialRampToValueAtTime(0.001, t + (sizzle ? 0.5 : 0.18)); ng.connect(SND.master);
+  const n = c.createBufferSource(); n.buffer = SND.white; const f = c.createBiquadFilter(); f.type = sizzle ? 'bandpass' : 'lowpass';
+  f.frequency.setValueAtTime(sizzle ? 3000 : 1800, t); f.frequency.exponentialRampToValueAtTime(sizzle ? 1200 : 120, t + 0.2); n.connect(f); f.connect(ng); n.start(t); n.stop(t + 0.55);
+}
+
 function sndToggleMute() {
   SND.muted = !SND.muted;
   if (SND.master) SND.master.gain.setTargetAtTime(SND.muted ? 0 : CFG.sound.master, SND.ctx.currentTime, 0.05);

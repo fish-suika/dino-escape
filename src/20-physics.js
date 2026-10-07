@@ -4,7 +4,7 @@ function speedAt(t) { return Math.min(CFG.run.maxSpeed, CFG.run.baseSpeed + CFG.
 // state: run（操作可）/ knocked（吹き飛び中・操作不能）/ recover（起き上がり中・操作不能）
 function newPlayer() {
   return { x: 0, y: 0, z: 0, vx: 0, vy: 0, grounded: true, speed: CFG.run.baseSpeed, time: 0, dist: 0,
-           state: 'run', stateT: 0, knockT: 0, kvx: 0, kvf: 0, tumble: 0, spinRate: 0, power: 0, slow: 0, invuln: 0, hits: 0 };
+           state: 'run', stateT: 0, knockT: 0, kvx: 0, kvf: 0, tumble: 0, spinRate: 0, power: 0, slow: 0, slowF: CFG.hit.slowFactor, invuln: 0, hits: 0, trips: 0, stumbleT: 0 };
 }
 
 function approach(v, target, amount) { return v < target ? Math.min(target, v + amount) : Math.max(target, v - amount); }
@@ -23,7 +23,7 @@ function knockPlayer(P, rx, rz, size) {
   P.kvx = dir * H.kickSide * pw; P.kvf = H.kickFwd * pw;
   P.vx = 0; P.vy = H.kickUp * (0.6 + 0.4 * pw); P.y = Math.max(P.y, 0) + 0.01; P.grounded = false;
   P.tumble = 0; P.spinRate = -H.spin * (0.7 + 0.3 * pw);
-  P.slow = H.slowSec * (0.5 + 0.5 * pw); P.hits++;
+  P.slow = H.slowSec * (0.5 + 0.5 * pw); P.slowF = H.slowFactor; P.hits++;
   return true;
 }
 
@@ -53,6 +53,7 @@ function stepKnocked(P, dt) {
 function stepPlayer(P, inp, dt) {
   const M = CFG.move, J = CFG.jump, H = CFG.hit;
   if (P.invuln > 0) P.invuln = Math.max(0, P.invuln - dt);
+  if (P.stumbleT > 0) P.stumbleT = Math.max(0, P.stumbleT - dt);
   let mul = 1;
   if (P.state === 'run') {
     const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
@@ -69,7 +70,7 @@ function stepPlayer(P, inp, dt) {
     }
     if (P.slow > 0) {   // 直撃のあとしばらく遅い。最後の slowRamp 秒でなめらかに元の速さへ
       P.slow = Math.max(0, P.slow - dt);
-      mul = H.slowFactor + (1 - H.slowFactor) * (1 - Math.min(1, P.slow / H.slowRamp));
+      mul = P.slowF + (1 - P.slowF) * (1 - Math.min(1, P.slow / H.slowRamp));
     }
   } else if (P.state === 'knocked') {
     mul = stepKnocked(P, dt);

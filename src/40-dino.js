@@ -62,8 +62,9 @@ function updateDino(d, P, dt) {
   d.root.position.z = 0; d.root.rotation.x = 0; d.body.scale.y = 1;
   d.root.position.y = P.y;
   d.root.rotation.z = -P.vx * D.lean; d.root.rotation.y = -P.vx * D.lean * 0.7;
-  d.body.position.y = g * Math.abs(sw) * D.bob;
-  d.body.rotation.x = g * Math.sin(d.phase * 2) * 0.04 + a * Math.max(-0.5, Math.min(0.5, P.vy * 0.03));   // 上昇で鼻先が上、下降で下
+  const st = P.stumbleT > 0 ? Math.sin(P.stumbleT / CFG.obstacle.stumble.tiltSec * Math.PI) : 0;   // クレーターでつまずく：前のめりにガクッ
+  d.body.position.y = g * Math.abs(sw) * D.bob - st * 0.18;
+  d.body.rotation.x = g * Math.sin(d.phase * 2) * 0.04 + a * Math.max(-0.5, Math.min(0.5, P.vy * 0.03)) - st * 0.45;   // 上昇で鼻先が上、下降で下
   d.legs[0].rotation.x = g * sw * D.legSwing + a * D.tuck * 0.9;
   d.legs[1].rotation.x = g * -sw * D.legSwing + a * D.tuck * 0.5;
   d.tail1.rotation.y = g * Math.sin(d.phase) * D.tailSwing;

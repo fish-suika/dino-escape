@@ -31,6 +31,19 @@ const CFG = {
            heatRange: 55, glowBase: 0.1, wobble: 3, shakeRange: 26, shakeAmp: 0.16, audibleRange: 140,                        // 熱ゆらぎ・赤みが出始める距離 / 噴火後の下端の照り返し最小値 / 熱ゆらぎ(px) / 揺れが出る距離・大きさ / 音が聞こえ始める距離
            dangerGaps: [110, 75, 50, 28, 14],                                                                                 // HUD ゲージの点灯しきい値（この距離より近いと点が1つずつ点く）
            sparkMax: 260, steamMax: 140, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
+  obstacle: { seed: 1234, startDist: 50, slotStep: 20, minGapZ: 14, logClearZ: 30, aheadDist: 150, behindDist: 12, chunk: 40,   // 乱数の種 / 最初の障害物までの距離(u) / 配置の枠の間隔 / 前後の障害物の最低間隔（枠内のばらつきは slotStep-minGapZ）/ 倒木の前後に他を置かない距離 / 先に出す距離・消す距離 / まとめて作る長さ
+              density: { start: 0.5, end: 0.88, over: 900 },                                                                // 枠が埋まる確率：序盤→走行距離 over(u) かけて終盤の値へ線形（難易度の最終調整は Phase 6）
+              unlock: { rock: 0, crater: 70, log: 110, pool: 200 },                                                         // 各障害物が出始める走行距離（少しずつ増える）
+              weights: { rock: 0.34, log: 0.28, crater: 0.22, pool: 0.16 },                                                 // 出現の重み
+              rock: { rMin: 1.0, rMax: 1.5, hMin: 1.0, hMax: 1.4, shrink: 0.85 },                                           // 岩：半径 / 高さ（ジャンプ頂点は約2.07）/ 当たりの縮小率
+              log: { lenMin: 13, lenMax: 24, r: 0.6, h: 1.2, overhang: 1.5 },                                               // 倒木：長さ（左右の幅 26 の半分〜ほぼ全幅）/ 幹の半径 / 高さ / 端のはみ出し
+              crater: { rMin: 1.5, rMax: 2.5, clearY: 0.5 },                                                                // クレーター：半径 / これより高く跳んでいれば越える
+              pool: { rMin: 2.0, rMax: 3.5, clearY: 1.4, minCorridor: 5 },                                                  // マグマ溜まり：半径 / これより高く跳んでいれば上を越える（実質は左右に避ける）/ 常に空ける通路幅
+              dinoR: 0.6, depthPad: 0.7, footMargin: 0.2,                                                                                 // 障害物に対する恐竜の当たり半径 / 前後方向の余裕 / 岩・倒木は足がこの分だけ上に出ていれば越えたことにする（甘め）
+              trip: { knock: 0.6, up: 6.5, fwd: 7, spin: 7, slowSec: 2.2, slowFactor: 0.6, shake: 0.14 },                   // 岩・倒木で転倒：転がる秒 / 跳ね上がり / 前へ転がる初速 / 回転 / 減速の秒と倍率 / 画面揺れ
+              poolTrip: { knock: 0.8, up: 8, fwd: 5, spin: 8, slowSec: 3.0, slowFactor: 0.42, shake: 0.2 },                 // マグマ溜まりに触れた：転倒＋強めの減速
+              stumble: { slowSec: 1.0, slowFactor: 0.7, tiltSec: 0.5 },                                                     // クレーター：つまずき（転倒しない・軽い減速）
+              oopsSec: 0.9 },                                                                                               // 「うわっ！」表示秒
   sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };

@@ -4,7 +4,7 @@
 function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
 function newMagma() { return { phase: 'playing', active: false, front: -CFG.magma.startGap, speed: 0, t: 0, deadT: 0, deathDist: 0 }; }
-function newGame() { return { P: newPlayer(), M: newMagma(), RS: newRockSched() }; }
+function newGame() { return { P: newPlayer(), M: newMagma(), RS: newRockSched(), OB: newObstacles() }; }
 
 // 噴火してから e 秒後のマグマの速さ
 function magmaSpeedAt(e) { const C = CFG.magma; return Math.min(C.speedMax, C.speed0 + C.accel * Math.max(0, e)); }
@@ -42,9 +42,10 @@ function stepMagma(M, P, dt, erupting) {
 // ゲーム全体を 1 フレーム進める。G = { P, M, RS }。playing の間だけ前進・操作・噴石の新規生成が動く。
 // dead の間はプレイヤーは動かず（P.stateT は死亡演出の経過秒）、噴石は新しく出ないが、すでに落下中のものは着弾する。
 function stepGame(G, inp, dt, rng) {
-  const { P, M, RS } = G, ev = { spawned: [], landed: [], died: false };
+  const { P, M, RS, OB } = G, ev = { spawned: [], landed: [], died: false, obstacle: { hits: [], spawned: [], removed: 0 } };
   if (M.phase === 'playing') {
     stepPlayer(P, inp, dt);
+    if (OB) ev.obstacle = stepObstacles(OB, P, dt);
     const erupting = volcanoState(P.time).state === 'erupting';
     const r = stepRocks(RS, P, dt, erupting, rng); ev.spawned = r.spawned; ev.landed = r.landed;
     ev.died = stepMagma(M, P, dt, erupting);
@@ -57,7 +58,7 @@ function stepGame(G, inp, dt, rng) {
 }
 
 // 全状態を初期化（オブジェクトの参照は変えず、中身だけ入れ替える）
-function resetGame(G) {
-  Object.assign(G.P, newPlayer()); Object.assign(G.M, newMagma()); Object.assign(G.RS, newRockSched());
+function resetGame(G, seed) {
+  Object.assign(G.P, newPlayer()); Object.assign(G.M, newMagma()); Object.assign(G.RS, newRockSched()); Object.assign(G.OB, newObstacles(seed));
   return G;
 }

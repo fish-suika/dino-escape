@@ -1,15 +1,33 @@
 // ===== 起動・メインループ =====
 (function () {
   if (typeof THREE === 'undefined') { document.getElementById('hint').textContent = 'three.js を読み込めませんでした（ネット接続を確認してください）'; return; }
-  buildWorld(); buildVolcano(); buildRocks(); buildMagma();
+  buildWorld(); buildVolcano(); buildRocks(); buildMagma(); buildObstacles();
   const $boom = document.getElementById('boom'), $flash = document.getElementById('flash'), $scream = document.getElementById('scream');
+  const $oops = document.getElementById("oops");
   let erupted = false, fx = volcanoState(0);
   const dino = buildDino(); WORLD.scene.add(dino.group);
-  const G = newGame(), P = G.P, M = G.M, RS = G.RS;   // 純ロジックの状態（リセット時も同じオブジェクトの中身を入れ替える）
+  const G = newGame(), P = G.P, M = G.M, RS = G.RS, OB = G.OB;
+  const newSeed = () => (Math.random() * 2147483647) | 0;
+  OB.seed = newSeed();   // 障害物の配置の種（毎回変わる。リセット時も新しくする）
   const $dist = document.getElementById('dist');
   let shown = -1;
 
   function showScream() { $scream.classList.remove('on'); void $scream.offsetWidth; $scream.classList.add('on'); }
+
+  function showOops() { $oops.style.animationDuration = CFG.obstacle.oopsSec + 's'; $oops.classList.remove('on'); void $oops.offsetWidth; $oops.classList.add('on'); }
+
+  // 障害物にぶつかった：ドン！・うわっ！・土煙・軽い揺れ（クレーターは弱いつまずきなので文字なし・小さめ）
+  function onObstacleHit(h) {
+    const O = CFG.obstacle, ob = h.ob, trip = h.kind === 'trip', pool = ob.type === 'pool', T = pool ? O.poolTrip : O.trip;
+    sndThud(trip ? (pool ? 1 : 0.8) : 0.35, pool);
+    if (trip) { showOops(); ROCKS.shake = Math.max(ROCKS.shake, T.shake); }
+    const n = trip ? 16 : 6;
+    for (let i = 0; i < n; i++) {
+      const a = rnd(0, 6.283), sp = rnd(3, 9);
+      fxEmit(ROCKS.dust, P.x + Math.cos(a) * 0.8, 0.3, P.z + Math.sin(a) * 0.8 - 1, Math.cos(a) * sp, rnd(0.5, 3), Math.sin(a) * sp - 4, rnd(0.8, 1.4), rnd(2, 3.4), 0.7, i % 3 === 0 ? 1 : 0);
+    }
+    if (pool) for (let i = 0; i < 14; i++) fxEmit(ROCKS.sparks, P.x, 0.5, P.z, rnd(-5, 5), rnd(6, 14), rnd(-5, 5), rnd(0.6, 1.1), rnd(1.2, 2.2), 1, 0);
+  }
 
   // マグマに飲まれた瞬間：音・揺れ・溶岩のしぶき
   function onDeath() {
@@ -24,11 +42,11 @@
 
   // R：全状態を初期化して最初から（噴火・噴石・マグマ・恐竜・揺れ・フラッシュ・音・粒子）。オブジェクトは作り直さない
   function restart() {
-    resetGame(G); erupted = false; fx = volcanoState(0); shown = -1;
+    resetGame(G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1;
     KEYS.left = KEYS.right = KEYS.jumpQ = false;
-    resetRocks(); resetVolcano(); resetWorld(); resetMagmaView();
+    resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
     dino.phase = 0; dino.air = 0; dino.group.visible = true;
-    [$boom, $scream].forEach(el => el.classList.remove('on')); $flash.style.opacity = 0;
+    [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); $flash.style.opacity = 0;
     sndMagmaUpdate(0);
   }
 
@@ -37,7 +55,8 @@
     const ev = stepGame(G, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
     KEYS.jumpQ = false;
     fx = volcanoState(P.time);
-    syncRocks(RS, dt);
+    syncRocks(RS, dt); syncObstacles(OB, dt);
+    ev.obstacle.hits.forEach(onObstacleHit);
     ev.landed.forEach(l => { rockImpact(l.rock, l.hit); if (l.hit) { showScream(); sndScream(); } });
     if (ev.died) onDeath();
     updateRocksFx(dt);
@@ -70,7 +89,7 @@
   bindInput(); bindSound();
   addEventListener('keydown', e => { if (e.code === 'KeyR' && !e.repeat && M.phase === 'dead') restart(); });
   // 確認用：状態の読み取りと、1 フレーム進める口。dropRock(size, x, z, warn?) = 指定位置へ今すぐ噴石を落とす（warn は着弾までの秒の上書き）
-  window.GAME = { G, P, M, KEYS, CFG, dino, WORLD, VOL, SND, RS, ROCKS, MAG, get fx() { return fx; },
+  window.GAME = { G, P, M, KEYS, CFG, dino, WORLD, VOL, SND, RS, OB, OBS, ROCKS, MAG, get fx() { return fx; },
     step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); },
     restart,
     dropRock: (size, x, z, warn) => spawnRock(RS, size, x, z, null, warn),
