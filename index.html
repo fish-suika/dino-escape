@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DINO ESCAPE</title>
+<style>
+  :root{--ink:#f6ece0;--jp:"Hiragino Kaku Gothic ProN","Yu Gothic","YuGothic","Meiryo","Noto Sans JP",sans-serif}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#1a0d0b;color:var(--ink);font-family:var(--jp);user-select:none;-webkit-user-select:none}
+  #view{position:fixed;inset:0}
+  #view canvas{display:block;width:100%;height:100%}
+  #hud{position:fixed;left:0;right:0;top:18px;display:flex;justify-content:center;pointer-events:none}
+  #dist{padding:6px 22px;border-radius:999px;background:rgba(20,8,6,.55);border:1px solid rgba(255,255,255,.2);
+    font-size:26px;letter-spacing:.08em;font-variant-numeric:tabular-nums;text-shadow:0 2px 8px #000}
+  #hint{position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:13px;letter-spacing:.1em;opacity:.7;pointer-events:none;text-shadow:0 1px 6px #000}
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="hud"><div id="dist">距離：0m</div></div>
+<div id="hint">← → / A D 移動 ・ Space ジャンプ</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+// ===== 調整値（ここに集約） =====
+const CFG = {
+  run: { baseSpeed: 16, accel: 0.04, maxSpeed: 34 },                  // 前進：基準速度 / 経過秒あたりの加速（u/s²）/ 上限（単位 u = 1m）
+  move: { maxX: 13, maxSpeed: 10, accel: 55, decel: 45, airAccelMul: 0.55, airDecelMul: 0.35 },   // 左右：荒野の左右限界 / 最高横速度 / 加速 / 減速 / 空中での加減速倍率
+  jump: { velocity: 11.5, gravity: 32 },                              // ジャンプ初速 / 重力
+  cam: { back: 11, height: 6.2, lookAhead: 14, lookY: 1.2, follow: 5, followX: 0.7, lookFollowX: 0.85, fov: 60, fovSpeed: 0.35, fovMax: 78, jumpLift: 0.35 },   // 後方距離 / 高さ / 先を見る距離 / 注視点の高さ / 追従の速さ / 横追従率 / 画角と速度による広がり
+  world: { groundSize: 600, texRepeat: 40, fogColor: 0x5a2f26, fogNear: 50, fogFar: 260, clearHalf: 18,
+           rocks: 46, hills: 14, spawnAhead: 220, spawnBehind: 30, spread: 110 },   // 地面の大きさ / テクスチャ繰り返し / フォグ / 装飾を置かない中央の半幅（遊べる範囲の外側）/ 装飾の数 / 先に出す距離・消す距離 / 左右の散らばり幅
+  dino: { runFreq: 0.55, legSwing: 0.95, tailSwing: 0.35, bob: 0.09, tuck: 1.0, lean: 0.03 },   // 脚ふりの速さ（距離あたり）/ 脚の振れ幅 / 尻尾の揺れ / 上下の弾み / ジャンプ時の足たたみ / 横移動の傾き
+  dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
+};
+// ===== 純ロジック（three.js 非依存。verify.html でテスト） =====
+function speedAt(t) { return Math.min(CFG.run.maxSpeed, CFG.run.baseSpeed + CFG.run.accel * t); }
+
+function newPlayer() { return { x: 0, y: 0, z: 0, vx: 0, vy: 0, grounded: true, speed: CFG.run.baseSpeed, time: 0, dist: 0 }; }
+
+function approach(v, target, amount) { return v < target ? Math.min(target, v + amount) : Math.max(target, v - amount); }
+
+// inp = { left, right, jump }（jump は「押した瞬間」の 1 回分）。P を直接更新する
+function stepPlayer(P, inp, dt) {
+  const M = CFG.move, J = CFG.jump;
+  const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+  const air = !P.grounded;
+  if (dir !== 0) P.vx = approach(P.vx, dir * M.maxSpeed, M.accel * (air ? M.airAccelMul : 1) * dt);
+  else P.vx = approach(P.vx, 0, M.decel * (air ? M.airDecelMul : 1) * dt);
+  P.x += P.vx * dt;
+  if (P.x > M.maxX) { P.x = M.maxX; if (P.vx > 0) P.vx = 0; }
+  if (P.x < -M.maxX) { P.x = -M.maxX; if (P.vx < 0) P.vx = 0; }
+  if (inp.jump && P.grounded) { P.vy = J.velocity; P.grounded = false; }
+  if (!P.grounded) {
+    P.vy -= J.gravity * dt; P.y += P.vy * dt;
+    if (P.y <= 0) { P.y = 0; P.vy = 0; P.grounded = true; }
+  }
+  P.time += dt;
+  P.speed = speedAt(P.time);
+  P.dist += P.speed * dt;
+  P.z = -P.dist;   // 前方は -z
+}
+
+// ジャンプの滞空時間と最高到達点（調整の目安）
+function jumpStats() { const J = CFG.jump; return { air: 2 * J.velocity / J.gravity, peak: J.velocity * J.velocity / (2 * J.gravity) }; }
+// ===== 3D ステージ：空・フォグ・地面・装飾・カメラ =====
+const WORLD = {};
+
+function rnd(a, b) { return a + Math.random() * (b - a); }
+
+function makeSkyTexture() {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+  const g = c.getContext('2d'), grd = g.createLinearGradient(0, 0, 0, 256);
+  grd.addColorStop(0, '#1c0e10'); grd.addColorStop(0.45, '#3d1c18'); grd.addColorStop(0.8, '#7a3d2a'); grd.addColorStop(1, '#9a5236');
+  g.fillStyle = grd; g.fillRect(0, 0, 4, 256);
+  const t = new THREE.CanvasTexture(c); return t;
+}
+
+function makeGroundTexture() {
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#6b5f5a'; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 1400; i++) {   // 灰のまだら
+    const v = 70 + Math.floor(Math.random() * 60);
+    g.fillStyle = `rgba(${v + 14},${v + 4},${v},${0.25 + Math.random() * 0.3})`;
+    const r = 1 + Math.random() * 5; g.beginPath(); g.arc(Math.random() * S, Math.random() * S, r, 0, 7); g.fill();
+  }
+  for (let i = 0; i < 40; i++) {   // 焼けた赤茶の斑点
+    g.fillStyle = `rgba(110,48,34,${0.25 + Math.random() * 0.25})`;
+    g.beginPath(); g.arc(Math.random() * S, Math.random() * S, 2 + Math.random() * 6, 0, 7); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(CFG.world.texRepeat, CFG.world.texRepeat); return t;
+}
+
+function buildWorld() {
+  const W = CFG.world, host = document.getElementById('view');
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+  host.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  scene.background = makeSkyTexture();
+  scene.fog = new THREE.Fog(W.fogColor, W.fogNear, W.fogFar);
+  const camera = new THREE.PerspectiveCamera(CFG.cam.fov, 16 / 9, 0.1, 600);
+
+  scene.add(new THREE.HemisphereLight(0xc9a392, 0x3a2420, 0.9));
+  const sun = new THREE.DirectionalLight(0xffb27a, 0.8); sun.position.set(-30, 40, 20); scene.add(sun);
+
+  // 地面：プレイヤーの z に追従させ、テクスチャだけ流して「前へ進む」見た目にする
+  const gtex = makeGroundTexture();
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(W.groundSize, W.groundSize), new THREE.MeshLambertMaterial({ map: gtex }));
+  ground.rotation.x = -Math.PI / 2; scene.add(ground);
+
+  // 装飾（岩・丘）。障害物ではなく見た目だけ。遊べる範囲（±clearHalf）の外側に置く
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0x4d4440, flatShading: true });
+  const rockMat2 = new THREE.MeshLambertMaterial({ color: 0x5f524b, flatShading: true });
+  const hillMat = new THREE.MeshLambertMaterial({ color: 0x564a45, flatShading: true });
+  const decor = [];
+  function place(d, initial, pz) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const off = d.isHill ? rnd(W.clearHalf + 14, W.clearHalf + W.spread) : rnd(W.clearHalf, W.clearHalf + W.spread * 0.7);
+    d.mesh.position.x = side * off;
+    d.mesh.position.z = initial ? pz + rnd(W.spawnBehind, -W.spawnAhead) : pz - W.spawnAhead - rnd(0, 30);
+  }
+  for (let i = 0; i < W.rocks; i++) {
+    const s = rnd(0.8, 3.2), m = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), Math.random() < 0.5 ? rockMat : rockMat2);
+    m.scale.set(s * rnd(0.8, 1.4), s * rnd(0.6, 1.1), s * rnd(0.8, 1.4)); m.rotation.set(rnd(0, 3), rnd(0, 3), rnd(0, 3)); m.position.y = s * 0.35;
+    scene.add(m); decor.push({ mesh: m, isHill: false });
+  }
+  for (let i = 0; i < W.hills; i++) {
+    const s = rnd(9, 22), m = new THREE.Mesh(new THREE.SphereGeometry(1, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), hillMat);
+    m.scale.set(s * rnd(1.2, 2), s * rnd(0.25, 0.5), s * rnd(1, 1.6)); m.rotation.y = rnd(0, 3);
+    scene.add(m); decor.push({ mesh: m, isHill: true });
+  }
+  decor.forEach(d => place(d, true, 0));
+
+  Object.assign(WORLD, { renderer, scene, camera, ground, gtex, decor, place, camX: 0, lookX: 0, camReady: false });
+  fit();
+  addEventListener('resize', fit);
+}
+
+function fit() {
+  const host = document.getElementById('view'), w = host.clientWidth || innerWidth, h = host.clientHeight || innerHeight;
+  WORLD.renderer.setSize(w, h, false);
+  WORLD.camera.aspect = w / h; WORLD.camera.updateProjectionMatrix();
+}
+
+function updateWorld(P, dt) {
+  const W = CFG.world, C = CFG.cam, cam = WORLD.camera;
+  WORLD.ground.position.z = P.z;
+  const tile = W.groundSize / W.texRepeat;
+  WORLD.gtex.offset.y = P.dist / tile;   // 地面が手前へ流れる（前方は -z）
+  WORLD.decor.forEach(d => { if (d.mesh.position.z > P.z + W.spawnBehind) WORLD.place(d, false, P.z); });
+
+  // カメラ：後方上から見下ろす。横と高さはなめらかに追従、前後は一定距離
+  const k = 1 - Math.exp(-C.follow * dt);
+  if (!WORLD.camReady) { WORLD.camX = P.x * C.followX; WORLD.lookX = P.x * C.lookFollowX; WORLD.camY = C.height; WORLD.camReady = true; }
+  WORLD.camX += (P.x * C.followX - WORLD.camX) * k;
+  WORLD.lookX += (P.x * C.lookFollowX - WORLD.lookX) * k;
+  WORLD.camY += (C.height + P.y * C.jumpLift - WORLD.camY) * k;
+  cam.position.set(WORLD.camX, WORLD.camY, P.z + C.back);
+  cam.lookAt(WORLD.lookX, C.lookY, P.z - C.lookAhead);
+  const fov = Math.min(C.fovMax, C.fov + (P.speed - CFG.run.baseSpeed) * C.fovSpeed);
+  if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+}
+// ===== 恐竜（基本 Geometry だけのコミカルな1種類）。頭は -z 向き =====
+function buildDino() {
+  const D = CFG.dino;
+  const skin = new THREE.MeshLambertMaterial({ color: 0x6fbf4a, flatShading: true });
+  const belly = new THREE.MeshLambertMaterial({ color: 0xd9e59a, flatShading: true });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x4a8f32, flatShading: true });
+  const spike = new THREE.MeshLambertMaterial({ color: 0xf29a3a, flatShading: true });
+  const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const black = new THREE.MeshBasicMaterial({ color: 0x111111 });
+
+  const root = new THREE.Group();   // 位置（プレイヤー座標）と傾き
+  const body = new THREE.Group(); root.add(body);   // 弾み・ピッチ
+
+  const torso = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10), skin); torso.scale.set(0.85, 0.8, 1.25); torso.position.set(0, 1.6, 0.1); body.add(torso);
+  const tummy = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), belly); tummy.scale.set(0.6, 0.55, 1.0); tummy.position.set(0, 1.35, -0.15); body.add(tummy);
+  for (let i = 0; i < 4; i++) {   // 背びれ
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(0.22 - i * 0.02, 0.5, 5), spike); sp.position.set(0, 2.4 - i * 0.06, 0.55 - i * 0.42); body.add(sp);
+  }
+
+  const head = new THREE.Group(); head.position.set(0, 2.2, -1.0); body.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.62, 12, 10), skin); head.add(skull);
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.38, 0.6), skin); snout.position.set(0, -0.08, -0.55); head.add(snout);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.14, 0.56), belly); jaw.position.set(0, -0.3, -0.5); head.add(jaw);
+  [-1, 1].forEach(s => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), white); eye.position.set(s * 0.3, 0.28, -0.32); head.add(eye);
+    const pup = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), black); pup.position.set(s * 0.31, 0.28, -0.48); head.add(pup);
+    const nos = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), black); nos.position.set(s * 0.14, 0.02, -0.86); head.add(nos);
+  });
+
+  [-1, 1].forEach(s => {   // ちいさな腕
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.45), dark); arm.position.set(s * 0.72, 1.55, -0.65); arm.rotation.y = s * -0.3; body.add(arm);
+  });
+
+  const tail1 = new THREE.Group(); tail1.position.set(0, 1.6, 1.15); body.add(tail1);
+  const t1 = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.5, 7).translate(0, 0.75, 0).rotateX(Math.PI / 2), skin); tail1.add(t1);
+  const tail2 = new THREE.Group(); tail2.position.set(0, 0, 1.3); tail1.add(tail2);
+  const t2 = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.4, 7).translate(0, 0.7, 0).rotateX(Math.PI / 2), dark); tail2.add(t2);
+
+  const legs = [-1, 1].map(s => {   // 脚：股関節のピボットから下へ
+    const hip = new THREE.Group(); hip.position.set(s * 0.5, 1.2, 0.3); root.add(hip);
+    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.85, 0.5), skin); thigh.position.y = -0.4; hip.add(thigh);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.2, 0.75), dark); foot.position.set(0, -0.88, -0.14); hip.add(foot);
+    return hip;
+  });
+
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.3, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; shadow.scale.set(0.9, 1.4, 1);
+
+  const group = new THREE.Group(); group.add(root); group.add(shadow);
+  return { group, root, body, head, tail1, tail2, legs, shadow, phase: 0, air: 0 };
+}
+
+function updateDino(d, P, dt) {
+  const D = CFG.dino;
+  d.phase += P.speed * dt * D.runFreq;
+  d.air += ((P.grounded ? 0 : 1) - d.air) * (1 - Math.exp(-14 * dt));   // 空中ポーズへのなめらかな切り替え
+  const sw = Math.sin(d.phase), a = d.air, g = 1 - a;
+  d.group.position.set(P.x, 0, P.z);
+  d.root.position.y = P.y;
+  d.root.rotation.z = -P.vx * D.lean; d.root.rotation.y = -P.vx * D.lean * 0.7;
+  d.body.position.y = g * Math.abs(sw) * D.bob;
+  d.body.rotation.x = g * Math.sin(d.phase * 2) * 0.04 + a * Math.max(-0.5, Math.min(0.5, P.vy * 0.03));   // 上昇で鼻先が上、下降で下
+  d.legs[0].rotation.x = g * sw * D.legSwing + a * D.tuck * 0.9;
+  d.legs[1].rotation.x = g * -sw * D.legSwing + a * D.tuck * 0.5;
+  d.tail1.rotation.y = g * Math.sin(d.phase) * D.tailSwing;
+  d.tail2.rotation.y = g * Math.sin(d.phase - 1.0) * D.tailSwing * 1.2;
+  d.tail1.rotation.x = -a * 0.35 + g * Math.sin(d.phase * 2) * 0.05;
+  d.tail2.rotation.x = -a * 0.25;
+  d.head.rotation.x = g * -Math.sin(d.phase * 2) * 0.05 - a * 0.15;
+  d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - Math.min(1, P.y / 6) * 0.6);
+  const ss = 1 - Math.min(0.5, P.y * 0.07); d.shadow.scale.set(0.9 * ss, 1.4 * ss, 1);
+}
+// ===== キー入力（PC のみ） =====
+const KEYS = { left: false, right: false, jumpQ: false };
+const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+function bindInput() {
+  addEventListener('keydown', e => {
+    if (KEYMAP[e.code]) { KEYS[KEYMAP[e.code]] = true; e.preventDefault(); }
+    else if (e.code === 'Space') { if (!e.repeat) KEYS.jumpQ = true; e.preventDefault(); }
+  });
+  addEventListener('keyup', e => { if (KEYMAP[e.code]) { KEYS[KEYMAP[e.code]] = false; e.preventDefault(); } });
+  addEventListener('blur', () => { KEYS.left = KEYS.right = KEYS.jumpQ = false; });
+}
+// ===== 起動・メインループ =====
+(function () {
+  if (typeof THREE === 'undefined') { document.getElementById('hint').textContent = 'three.js を読み込めませんでした（ネット接続を確認してください）'; return; }
+  buildWorld();
+  const dino = buildDino(); WORLD.scene.add(dino.group);
+  const P = newPlayer();
+  const $dist = document.getElementById('dist');
+  let shown = -1;
+
+  function update(dt) {
+    stepPlayer(P, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
+    KEYS.jumpQ = false;
+    updateDino(dino, P, dt);
+    updateWorld(P, dt);
+    const m = Math.floor(P.dist);
+    if (m !== shown) { shown = m; $dist.textContent = '距離：' + m + 'm'; }
+  }
+
+  bindInput();
+  // 確認用：状態の読み取りと、1 フレーム進める口
+  window.GAME = { P, KEYS, CFG, dino, WORLD, step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); } };
+  let last = performance.now();
+  (function loop(now) {
+    const dt = Math.max(0, Math.min(CFG.dt.max, (now - last) / 1000)); last = now;
+    update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera);
+    requestAnimationFrame(loop);
+  })(last);
+})();
+</script>
+</body>
+</html>
