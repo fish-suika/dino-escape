@@ -29,6 +29,12 @@ const CFG = {
   world: { groundSize: 600, texRepeat: 40, fogColor: 0x5a2f26, fogNear: 50, fogFar: 260, clearHalf: 18,
            rocks: 46, hills: 14, spawnAhead: 220, spawnBehind: 30, spread: 110 },   // 地面の大きさ / テクスチャ繰り返し / フォグ / 装飾を置かない中央の半幅（遊べる範囲の外側）/ 装飾の数 / 先に出す距離・消す距離 / 左右の散らばり幅
   dino: { runFreq: 0.55, legSwing: 0.95, tailSwing: 0.35, bob: 0.09, tuck: 1.0, lean: 0.03 },   // 脚ふりの速さ（距離あたり）/ 脚の振れ幅 / 尻尾の揺れ / 上下の弾み / ジャンプ時の足たたみ / 横移動の傾き
+  volcano: { eruptDelay: 4, rampTime: 6, idleSmoke: 0.25, dist: 300, recede: 0.04, radius: 120, height: 130, craterR: 18,   // 大噴火までの秒 / 噴火が最大強度になるまでの秒 / 噴火前の煙の量 / 後方の距離 / 遠ざかる率 / 山の大きさ
+             boomDur: 2.2, shakeAmp: 0.32, shakeDur: 1.6, flashDur: 0.9, flashMax: 0.6,                                    // 「ドゴォォォン」表示秒 / 画面揺れの大きさ・秒 / 閃光の秒・最大濃さ
+             smokeMax: 450, fireMax: 380, ashMax: 650, emberMax: 200, canopyMax: 170,                                                    // パーティクル上限（煙 / 火花 / 火山灰 / 降る火の粉）
+             windSpeed: 70, smokeLife: 9, ashBox: { x: 45, y: 32, z: 80 },                                                // 煙が手前へ流れる速さ / 煙の寿命 / 灰が降る範囲
+             sky: { top: '#0a0203', mid: '#3a0a08', low: '#7a1c0e', bottom: '#a8300f' }, fogColor: 0x3a0e0a },             // 噴火後の空と霧の色
+  sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85 },                                                              // 全体音量 / 待機中・噴火中のゴゴゴ音量
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };
 // ===== 純ロジック（three.js 非依存。verify.html でテスト） =====
@@ -61,6 +67,17 @@ function stepPlayer(P, inp, dt) {
 
 // ジャンプの滞空時間と最高到達点（調整の目安）
 function jumpStats() { const J = CFG.jump; return { air: 2 * J.velocity / J.gravity, peak: J.velocity * J.velocity / (2 * J.gravity) }; }
+// ===== 火山の噴火状態（純ロジック。経過秒 → 状態。three.js 非依存） =====
+function smooth01(x) { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); }
+
+// t = ゲーム開始からの秒。k = 噴火強度 0〜1、smoke = 煙の量（噴火前も少しある）
+function volcanoState(t) {
+  const V = CFG.volcano;
+  if (!(t >= V.eruptDelay)) return { state: 'idle', k: 0, smoke: V.idleSmoke, shake: 0, flash: 0, boom: false };
+  const e = t - V.eruptDelay, k = smooth01(e / V.rampTime);
+  const sh = Math.max(0, 1 - e / V.shakeDur), fl = Math.max(0, 1 - e / V.flashDur);
+  return { state: 'erupting', k, smoke: V.idleSmoke + (1 - V.idleSmoke) * k, shake: V.shakeAmp * sh * sh, flash: V.flashMax * fl * fl, boom: e < V.boomDur };
+}
 // ===== 検証（three.js を使わない純粋ロジック） =====
 const $out = document.getElementById('out');
 let nOk = 0, nNg = 0;
@@ -140,6 +157,26 @@ check('速度は単調増加', (() => { let p = 0; for (let t = 0; t < 2000; t +
 (() => {
   const A = newPlayer(); run(A, { ...NONE, right: true }, 3, 1 / 60); const B = newPlayer(); run(B, { ...NONE, right: true }, 3, 1 / 30);
   check('60fps と 30fps で 3 秒後の距離がほぼ同じ', Math.abs(A.dist - B.dist) < 0.5, A.dist + ' vs ' + B.dist);
+})();
+
+// 火山の噴火状態
+(() => {
+  const V = CFG.volcano, B = volcanoState(V.eruptDelay - 0.01), A = volcanoState(V.eruptDelay + 0.01);
+  check('噴火前は idle・強度 0', volcanoState(0).state === 'idle' && B.state === 'idle' && B.k === 0 && B.shake === 0 && B.flash === 0 && !B.boom);
+  check('負の時間でも idle', volcanoState(-5).state === 'idle');
+  check('噴火前も少し煙を出している', B.smoke === V.idleSmoke && V.idleSmoke > 0);
+  check('eruptDelay を過ぎると erupting', A.state === 'erupting' && A.boom);
+  check('噴火直後は強度がほぼ 0（なめらかに立ち上がる）', A.k < 0.01);
+  let mono = true, jump = false, prev = 0;
+  for (let t = V.eruptDelay; t < V.eruptDelay + V.rampTime + 5; t += 1 / 60) { const k = volcanoState(t).k; if (k < prev - 1e-12) mono = false; if (k - prev > 0.05) jump = true; prev = k; }
+  check('強度は単調増加でとびとびにならない', mono && !jump);
+  check('rampTime 後は強度 1', volcanoState(V.eruptDelay + V.rampTime + 0.1).k === 1 && volcanoState(1e6).k === 1);
+  check('煙の量は噴火後 1 に達する', volcanoState(1e6).smoke === 1);
+  check('噴火直後に画面揺れ・閃光があり、上限内', A.shake > 0 && A.shake <= V.shakeAmp && A.flash > 0 && A.flash <= V.flashMax);
+  const L = volcanoState(V.eruptDelay + Math.max(V.shakeDur, V.flashDur, V.boomDur) + 0.1);
+  check('揺れ・閃光・「ドゴォォォン」は短時間で消える', L.shake === 0 && L.flash === 0 && !L.boom);
+  check('揺れは操作不能にならない小ささ（カメラ移動 0.5u 未満）', V.shakeAmp < 0.5);
+  check('火山は遠方の後方にある（fog より遠い）', V.dist > CFG.world.fogFar);
 })();
 
 document.getElementById('sum').textContent = nNg === 0 ? `ALL PASS (${nOk})` : `FAIL ${nNg} / PASS ${nOk}`;

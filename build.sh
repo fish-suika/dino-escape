@@ -6,9 +6,12 @@ cd "$(dirname "$0")"
 cat src/00-head.html \
     src/10-config.js \
     src/20-physics.js \
+    src/25-volcano-logic.js \
     src/30-world.js \
+    src/35-volcano.js \
     src/40-dino.js \
     src/50-input.js \
+    src/60-sound.js \
     src/90-boot.js \
     src/99-tail.html > dino-escape.html
 cp dino-escape.html index.html   # GitHub Pages はルートの index.html を配信する
@@ -17,6 +20,7 @@ cp dino-escape.html index.html   # GitHub Pages はルートの index.html を�
 cat src/verify-head.html \
     src/10-config.js \
     src/20-physics.js \
+    src/25-volcano-logic.js \
     src/verify-tests.js \
     src/99-tail.html > verify.html
 

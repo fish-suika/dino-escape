@@ -79,5 +79,25 @@ check('速度は単調増加', (() => { let p = 0; for (let t = 0; t < 2000; t +
   check('60fps と 30fps で 3 秒後の距離がほぼ同じ', Math.abs(A.dist - B.dist) < 0.5, A.dist + ' vs ' + B.dist);
 })();
 
+// 火山の噴火状態
+(() => {
+  const V = CFG.volcano, B = volcanoState(V.eruptDelay - 0.01), A = volcanoState(V.eruptDelay + 0.01);
+  check('噴火前は idle・強度 0', volcanoState(0).state === 'idle' && B.state === 'idle' && B.k === 0 && B.shake === 0 && B.flash === 0 && !B.boom);
+  check('負の時間でも idle', volcanoState(-5).state === 'idle');
+  check('噴火前も少し煙を出している', B.smoke === V.idleSmoke && V.idleSmoke > 0);
+  check('eruptDelay を過ぎると erupting', A.state === 'erupting' && A.boom);
+  check('噴火直後は強度がほぼ 0（なめらかに立ち上がる）', A.k < 0.01);
+  let mono = true, jump = false, prev = 0;
+  for (let t = V.eruptDelay; t < V.eruptDelay + V.rampTime + 5; t += 1 / 60) { const k = volcanoState(t).k; if (k < prev - 1e-12) mono = false; if (k - prev > 0.05) jump = true; prev = k; }
+  check('強度は単調増加でとびとびにならない', mono && !jump);
+  check('rampTime 後は強度 1', volcanoState(V.eruptDelay + V.rampTime + 0.1).k === 1 && volcanoState(1e6).k === 1);
+  check('煙の量は噴火後 1 に達する', volcanoState(1e6).smoke === 1);
+  check('噴火直後に画面揺れ・閃光があり、上限内', A.shake > 0 && A.shake <= V.shakeAmp && A.flash > 0 && A.flash <= V.flashMax);
+  const L = volcanoState(V.eruptDelay + Math.max(V.shakeDur, V.flashDur, V.boomDur) + 0.1);
+  check('揺れ・閃光・「ドゴォォォン」は短時間で消える', L.shake === 0 && L.flash === 0 && !L.boom);
+  check('揺れは操作不能にならない小ささ（カメラ移動 0.5u 未満）', V.shakeAmp < 0.5);
+  check('火山は遠方の後方にある（fog より遠い）', V.dist > CFG.world.fogFar);
+})();
+
 document.getElementById('sum').textContent = nNg === 0 ? `ALL PASS (${nOk})` : `FAIL ${nNg} / PASS ${nOk}`;
 document.getElementById('sum').style.color = nNg === 0 ? '#6bd07a' : '#ff6b6b';
