@@ -7,8 +7,10 @@ cat src/00-head.html \
     src/10-config.js \
     src/20-physics.js \
     src/25-volcano-logic.js \
+    src/26-rock-logic.js \
     src/30-world.js \
     src/35-volcano.js \
+    src/36-rocks.js \
     src/40-dino.js \
     src/50-input.js \
     src/60-sound.js \
@@ -21,6 +23,7 @@ cat src/verify-head.html \
     src/10-config.js \
     src/20-physics.js \
     src/25-volcano-logic.js \
+    src/26-rock-logic.js \
     src/verify-tests.js \
     src/99-tail.html > verify.html
 

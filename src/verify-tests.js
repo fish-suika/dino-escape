@@ -99,5 +99,164 @@ check('速度は単調増加', (() => { let p = 0; for (let t = 0; t < 2000; t +
   check('火山は遠方の後方にある（fog より遠い）', V.dist > CFG.world.fogFar);
 })();
 
+// ===== Phase 3：恐竜の状態機械（直撃 → 吹き飛び → 起き上がり → 減速 → 無敵） =====
+const H = CFG.hit, RK = CFG.rock;
+const STEP = 1 / 60;
+function runUntil(P, inp, fn, maxSec) { let t = 0; while (!fn(P) && t < maxSec) { stepPlayer(P, inp, STEP); t += STEP; } return t; }
+(() => {
+  const P = newPlayer(); run(P, NONE, 1);
+  check('初期状態は run・無敵なし・減速なし', newPlayer().state === 'run' && newPlayer().invuln === 0 && newPlayer().slow === 0);
+  check('着弾半径内・地上なら直撃判定', rockHitsPlayer(P, P.x + 1, P.z, RK.sizes.mid.radius));
+  check('着弾半径の外なら当たらない', !rockHitsPlayer(P, P.x + RK.sizes.mid.radius + H.dinoR + 0.5, P.z, RK.sizes.mid.radius));
+  check('前後方向に離れていても当たらない', !rockHitsPlayer(P, P.x, P.z - 20, RK.sizes.large.radius));
+  const J = newPlayer(); stepPlayer(J, { ...NONE, jump: true }, STEP); run(J, NONE, 0.3);
+  check('高く跳んでいれば爆風の上を越える（y ≥ maxY）', J.y >= H.maxY && !rockHitsPlayer(J, J.x, J.z, RK.sizes.large.radius), 'y ' + J.y);
+  const Q = newPlayer(); run(Q, NONE, 0.5);
+  check('地上スレスレの着弾（半径ぎりぎり内）は当たる', rockHitsPlayer(Q, Q.x + RK.sizes.small.radius + H.dinoR - 0.05, Q.z, RK.sizes.small.radius));
+})();
+
+(() => {
+  const P = newPlayer(); run(P, NONE, 1);
+  knockPlayer(P, P.x - 1, P.z, 'mid');
+  check('直撃で knocked になり、体が浮く', P.state === 'knocked' && P.vy > 0 && !P.grounded && P.hits === 1);
+  check('着弾の右にいたら右へ、左にいたら左へ吹き飛ぶ', (() => { const A = newPlayer(); knockPlayer(A, -3, 0, 'mid'); const B = newPlayer(); B.x = -5; knockPlayer(B, 0, 0, 'mid'); return A.kvx > 0 && B.kvx < 0; })());
+  check('真下の直撃は広く空いている側へ吹き飛ぶ', (() => { const A = newPlayer(); A.x = 5; knockPlayer(A, 5, 0, 'mid'); const B = newPlayer(); B.x = -5; knockPlayer(B, -5, 0, 'mid'); return A.kvx < 0 && B.kvx > 0; })());
+  check('前方にも飛ぶ（吹き飛び中も距離が増える）', P.kvf > 0);
+  const A = newPlayer(); run(A, NONE, 1); knockPlayer(A, A.x, A.z, 'mid');
+  const B = newPlayer(); run(B, NONE, 1); knockPlayer(B, B.x, B.z, 'mid');
+  for (let i = 0; i < 30; i++) { stepPlayer(A, { left: true, right: false, jump: i === 3 }, STEP); stepPlayer(B, NONE, STEP); }
+  check('knocked 中は左右入力・ジャンプを無視（入力ありでも結果が同じ）', Math.abs(A.x - B.x) < 1e-9 && Math.abs(A.y - B.y) < 1e-9 && A.state === 'knocked');
+  const seq = []; let prev = ''; const C = newPlayer(); run(C, NONE, 1); knockPlayer(C, C.x, C.z, 'mid');
+  let maxY = 0, bounced = false, tt = 0, wasAir = false, minX = 9, maxXv = -9, nan = false;
+  while (tt < 8 && !(C.state === 'run' && C.invuln > 0)) { stepPlayer(C, NONE, STEP); tt += STEP; if (C.state !== prev) { seq.push(C.state); prev = C.state; }
+    maxY = Math.max(maxY, C.y); if (!C.grounded) wasAir = true; if (wasAir && C.grounded && C.state === 'knocked' && C.stateT < C.knockT) bounced = true;
+    minX = Math.min(minX, C.x); maxXv = Math.max(maxXv, C.x); if (!isFinite(C.x + C.y + C.z)) nan = true; }
+  check('流れは knocked → recover → run', seq.join('>') === 'knocked>recover>run', seq.join('>'));
+  check('吹き飛び中に高さ1u以上まで舞い上がる', maxY > 1, 'maxY ' + maxY);
+  check('地面に落ちてバウンド／転がる（着地後も knocked が続く）', bounced);
+  check('吹き飛び中は荒野の左右限界を超えない・NaN にならない', minX >= -CFG.move.maxX - 1e-9 && maxXv <= CFG.move.maxX + 1e-9 && !nan);
+  check('直撃から操作復帰までが短すぎず長すぎない（1〜3.5秒）', tt > 1 && tt < 3.5, 'tt ' + tt);
+  check('復帰時は地上・y=0・回転が戻っている', C.y === 0 && C.grounded && C.tumble === 0);
+  check('復帰後すぐ無敵時間（invuln = invulnSec）', Math.abs(C.invuln - H.invulnSec) < 0.05);
+  const x1 = C.x; run(C, { ...NONE, right: true }, 0.3);
+  check('起き上がり後は再び左右入力が効く', C.x > x1 + 0.1 && C.state === 'run');
+  const D = newPlayer(); knockPlayer(D, 0, 0, 'mid'); runUntil(D, NONE, p => p.state === 'run', 6); stepPlayer(D, { ...NONE, jump: true }, STEP);
+  check('起き上がり後は再びジャンプできる', !D.grounded && D.vy > 0);
+  const E = newPlayer(), F = newPlayer(); run(E, NONE, 1); run(F, NONE, 1); knockPlayer(F, F.x, F.z, 'mid'); const d0 = F.dist, e0 = E.dist; run(E, NONE, 1); run(F, NONE, 1);
+  check('吹き飛び中も前には進むが、通常より遅い', F.dist - d0 > 0 && (F.dist - d0) < (E.dist - e0) - 1, (F.dist - d0) + ' vs ' + (E.dist - e0));
+  check('P.z = -dist は吹き飛び中も保たれる', Math.abs(F.z + F.dist) < 1e-9);
+})();
+
+(() => {
+  const res = ['small', 'mid', 'large'].map(s => { const P = newPlayer(); run(P, NONE, 1); P.x = 0; const x0 = P.x; knockPlayer(P, -1, P.z, s); let t = 0, peak = 0;
+    while (P.state === 'knocked') { stepPlayer(P, NONE, STEP); peak = Math.max(peak, P.y); t += STEP; } return { x: Math.abs(P.x - x0), t, peak, slow: P.slow }; });
+  check('大型ほど遠くへ吹き飛ぶ（small < mid < large）', res[0].x < res[1].x && res[1].x < res[2].x, JSON.stringify(res.map(r => r.x)));
+  check('大型ほど高く舞い上がる', res[0].peak < res[1].peak && res[1].peak < res[2].peak);
+  check('大型ほど吹き飛び時間が長い', res[0].t < res[1].t && res[1].t < res[2].t);
+  check('大型ほど減速が長引く', res[0].slow < res[1].slow && res[1].slow < res[2].slow);
+  check('小型でも最低限は吹き飛ぶ（上方向に 1u 以上）', res[0].peak > 1, 'peak ' + res[0].peak);
+})();
+
+(() => {
+  const P = newPlayer(); run(P, NONE, 1); knockPlayer(P, P.x, P.z, 'mid'); runUntil(P, NONE, p => p.state === 'run', 6);
+  stepPlayer(P, NONE, STEP);
+  const s0 = P.speed, base = speedAt(P.time);
+  check('復帰直後は移動速度が低下している（slowFactor 付近）', s0 < base * 0.7 && s0 > base * 0.4, s0 + ' / ' + base);
+  check('slow タイマーが残っている', P.slow > 1);
+  const sp = []; let t = 0;
+  while (t < H.slowSec + 1.5) { stepPlayer(P, NONE, STEP); t += STEP; sp.push(P.speed / speedAt(P.time)); }
+  check('減速は一時的：やがて通常速度に戻る', Math.abs(sp[sp.length - 1] - 1) < 1e-9 && P.slow === 0, 'ratio ' + sp[sp.length - 1]);
+  let mono = true; for (let i = 1; i < sp.length; i++) if (sp[i] < sp[i - 1] - 1e-9) mono = false;
+  check('減速からの回復は単調でなめらか', mono);
+  let jmp = 0; for (let i = 1; i < sp.length; i++) jmp = Math.max(jmp, Math.abs(sp[i] - sp[i - 1])); check('1フレームの速度変化は小さい（急に跳ねない）', jmp < 0.05, 'jump ' + jmp);
+  check('無敵時間が切れる', P.invuln === 0);
+})();
+
+(() => {
+  const P = newPlayer(); knockPlayer(P, 0, 0, 'mid'); runUntil(P, NONE, p => p.state === 'run', 6);
+  check('無敵中は同じ場所に落ちても再被弾しない', P.invuln > 0 && !rockHitsPlayer(P, P.x, P.z, RK.sizes.large.radius));
+  run(P, NONE, H.invulnSec * 0.5); check('無敵時間の半分では、まだ無敵', !rockHitsPlayer(P, P.x, P.z, 3));
+  run(P, NONE, H.invulnSec * 0.5 + 0.05); check('無敵時間が終われば再び当たる', rockHitsPlayer(P, P.x, P.z, 3));
+  const Q = newPlayer(); knockPlayer(Q, 0, 0, 'large');
+  check('吹き飛び中・起き上がり中は再被弾しない', !rockHitsPlayer(Q, Q.x, Q.z, 8) && (runUntil(Q, NONE, p => p.state === 'recover', 6), !rockHitsPlayer(Q, Q.x, Q.z, 8)));
+})();
+
+(() => {
+  const P = newPlayer(); let hits = 0, nan = false, runTime = 0;
+  for (let i = 0; i < 60 * 40; i++) {   // 40 秒間、毎フレーム「真下に大型が落ちた」ことにする
+    if (rockHitsPlayer(P, P.x, P.z, RK.sizes.large.radius)) { knockPlayer(P, P.x, P.z, 'large'); hits++; }
+    stepPlayer(P, NONE, STEP); if (P.state === 'run') runTime += STEP;
+    if (!isFinite(P.x + P.y + P.z + P.speed)) nan = true;
+  }
+  const cyc = H.knockBase + H.knockPer * RK.sizes.large.power + H.recoverSec + H.invulnSec;
+  check('毎フレーム大型が直撃し続けても、1周期に1回しか被弾しない', hits <= 40 / cyc + 2, 'hits ' + hits + ' / cycle ' + cyc);
+  check('連続被弾でも無敵のあいだは自由に走れる（run の時間が全体の3割以上）', runTime > 40 * 0.3, 'runTime ' + runTime);
+  check('連続被弾でも前進し続ける・NaN にならない', P.dist > 150 && !nan, 'dist ' + P.dist);
+})();
+
+// ===== Phase 3：噴石スケジューラ =====
+function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
+(() => {
+  const S = newRockSched(), P = newPlayer(); let n = 0;
+  for (let i = 0; i < 60 * 30; i++) { stepPlayer(P, NONE, STEP); n += stepRocks(S, P, STEP, false, lcg(1)).spawned.length; }
+  check('火山が噴火する前は噴石が降らない（30秒でも0個）', n === 0 && S.rocks.length === 0);
+  const T = newRockSched(); let first = -1, t = 0; const P2 = newPlayer(), rng = lcg(7);
+  for (let i = 0; i < 60 * 10 && first < 0; i++) { stepPlayer(P2, NONE, STEP); t += STEP; if (stepRocks(T, P2, STEP, true, rng).spawned.length) first = t; }
+  check('噴火後、firstDelay 秒で最初の噴石が出る', Math.abs(first - RK.firstDelay) < 0.1, 'first ' + first);
+})();
+
+(() => {
+  const S = newRockSched(), P = newPlayer(), rng = lcg(42); let spawned = 0, landed = 0, maxAlive = 0, hits = 0; const sizes = { small: 0, mid: 0, large: 0 };
+  const T = 120;
+  for (let i = 0; i < 60 * T; i++) { stepPlayer(P, NONE, STEP); const ev = stepRocks(S, P, STEP, true, rng); spawned += ev.spawned.length; landed += ev.landed.length; ev.spawned.forEach(r => sizes[r.size]++); ev.landed.forEach(l => { if (l.hit) hits++; }); maxAlive = Math.max(maxAlive, S.rocks.length); }
+  const expect = (T - RK.firstDelay) / RK.interval;
+  check('一定間隔で降る（120秒の個数が interval から計算した値の±25%）', spawned > expect * 0.75 && spawned < expect * 1.25, spawned + ' / ' + expect);
+  check('降った噴石はすべて着弾して取り除かれる', landed >= spawned - RK.maxActive && S.rocks.length <= RK.maxActive);
+  check('同時に存在する数が maxActive を超えない', maxAlive <= RK.maxActive, 'max ' + maxAlive);
+  check('小型・中型が大半で、大型は少ない（large < 15%）', sizes.large / spawned < 0.15 && (sizes.small + sizes.mid) / spawned > 0.85, JSON.stringify(sizes));
+  check('大型も出る（仕様どおり実装されている）', sizes.large > 0, JSON.stringify(sizes));
+  check('まっすぐ走り続けるだけだと直撃することがある（狙いが効いている）', hits >= 1, 'hits ' + hits);
+})();
+
+(() => {
+  const P = newPlayer(); run(P, NONE, 3); let bad = 0, aimedN = 0, aimedNear = 0, n = 0; const rng = lcg(5);
+  const lim = CFG.move.maxX + RK.edgeMargin;
+  for (let i = 0; i < 2000; i++) {
+    const size = pickRockSize(rng()), tg = pickRockTarget(P, size, rng), warn = RK.sizes[size].warn, pred = P.z - P.speed * warn;
+    if (Math.abs(tg.x) > lim + 1e-9) bad++;
+    if (tg.z > pred + RK.aimJitterZ + 1e-9) bad++;
+    if (tg.aimed) { aimedN++; if (Math.abs(tg.x - P.x) <= RK.aimJitterX + 1e-9 && Math.abs(tg.z - pred) <= RK.aimJitterZ + 1e-9) aimedNear++; }
+    n++;
+  }
+  check('落下地点は荒野の幅内（|x| ≤ maxX+余白）で、恐竜の予想位置より前方', bad === 0, 'bad ' + bad);
+  check('狙いの噴石は、着弾時の恐竜の予想位置の近くに落ちる', aimedN > 0 && aimedNear === aimedN, aimedNear + '/' + aimedN);
+  check('狙う確率は aimChance 付近', Math.abs(aimedN / n - RK.aimChance) < 0.05, aimedN / n);
+  const slowP = newPlayer(); run(slowP, NONE, 3); slowP.speed *= 0.5; const fast = pickRockTarget(P, 'mid', () => 0.0), slw = pickRockTarget(slowP, 'mid', () => 0.0);
+  check('減速中は着弾点が手前にずれる（速度を考慮している）', slw.z > fast.z, slw.z + ' vs ' + fast.z);
+  const P3 = newPlayer(); P3.x = CFG.move.maxX; const tg3 = pickRockTarget(P3, 'mid', () => 0.0);
+  check('端にいる恐竜を狙っても荒野の外には落ちない', Math.abs(tg3.x) <= lim);
+})();
+
+(() => {
+  const S = newRockSched(), P = newPlayer(); run(P, NONE, 1);
+  const w = ['small', 'mid', 'large'].map(s => RK.sizes[s]);
+  check('警告時間は小 < 中 < 大で、どれも十分な猶予（0.8秒以上）', w[0].warn < w[1].warn && w[1].warn < w[2].warn && w[0].warn >= 0.8);
+  check('着弾範囲は小 < 中 < 大・大型は非常に大きい', w[0].radius < w[1].radius && w[1].radius < w[2].radius && w[2].radius >= 1.5 * w[1].radius);
+  check('吹き飛びの強さは 小 < 中 < 大・画面揺れは小なし/中弱/大強', w[0].power < w[1].power && w[1].power < w[2].power && w[0].shake === 0 && w[1].shake > 0 && w[2].shake > w[1].shake);
+  check('警告時間内に横へ逃げ切れる（最高横速度×猶予 > 着弾半径＋恐竜半径）', w.every(c => c.warn * CFG.move.maxSpeed > c.radius + H.dinoR + 1));
+  const r = spawnRock(S, 'mid', P.x, P.z - 20, lcg(3));
+  const p0 = rockPos(r); r.t = r.warn * 0.5; const pm = rockPos(r); r.t = r.warn; const p1 = rockPos(r); r.t = 0;
+  check('噴石は高い空から着弾点へ：始点は高く後方、終点は着弾点で y=0', p0.y > 10 && p0.z > r.z + 10 && Math.abs(p1.x - r.x) < 1e-9 && Math.abs(p1.z - r.z) < 1e-9 && Math.abs(p1.y) < 1e-9);
+  check('落下中の高さは単調に下がる（加速して落ちる）', pm.y < p0.y && p1.y < pm.y && (p0.y - pm.y) < (pm.y - p1.y));
+  let ev, t = 0; const Q = newPlayer(); Q.x = 10;
+  while (S.rocks.length && t < 3) { ev = stepRocks(S, Q, STEP, false); t += STEP; if (ev.landed.length) break; }
+  check('警告から warn 秒後に着弾する（遠くの恐竜は無傷）', Math.abs(t - r.warn) < 0.05 && ev.landed.length === 1 && !ev.landed[0].hit && Q.state === 'run', 't ' + t);
+  const S2 = newRockSched(), P2 = newPlayer(); run(P2, NONE, 1);
+  spawnRock(S2, 'large', P2.x, P2.z, lcg(2), 0.1); let ev2; for (let i = 0; i < 20; i++) { ev2 = stepRocks(S2, P2, STEP, false); if (ev2.landed.length) break; }
+  check('着弾の瞬間に真下の恐竜がいれば直撃 → knocked', ev2.landed.length === 1 && ev2.landed[0].hit && P2.state === 'knocked');
+  const S3 = newRockSched(); let cnt = 0; for (let i = 0; i < 20; i++) if (spawnRock(S3, 'small', 0, -50, lcg(i))) cnt++;
+  check('spawnRock は maxActive を超えると null を返す', cnt === RK.maxActive && spawnRock(S3, 'small', 0, 0) === null);
+})();
+
 document.getElementById('sum').textContent = nNg === 0 ? `ALL PASS (${nOk})` : `FAIL ${nNg} / PASS ${nOk}`;
 document.getElementById('sum').style.color = nNg === 0 ? '#6bd07a' : '#ff6b6b';

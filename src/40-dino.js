@@ -56,6 +56,9 @@ function updateDino(d, P, dt) {
   d.air += ((P.grounded ? 0 : 1) - d.air) * (1 - Math.exp(-14 * dt));   // 空中ポーズへのなめらかな切り替え
   const sw = Math.sin(d.phase), a = d.air, g = 1 - a;
   d.group.position.set(P.x, 0, P.z);
+  d.group.visible = !(P.invuln > 0 && Math.floor(P.time * 14) % 2 === 0);   // 復帰後の無敵中は点滅
+  if (P.state !== 'run') { updateDinoHit(d, P); return; }
+  d.root.position.z = 0; d.root.rotation.x = 0; d.body.scale.y = 1;
   d.root.position.y = P.y;
   d.root.rotation.z = -P.vx * D.lean; d.root.rotation.y = -P.vx * D.lean * 0.7;
   d.body.position.y = g * Math.abs(sw) * D.bob;
@@ -69,4 +72,26 @@ function updateDino(d, P, dt) {
   d.head.rotation.x = g * -Math.sin(d.phase * 2) * 0.05 - a * 0.15;
   d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - Math.min(1, P.y / 6) * 0.6);
   const ss = 1 - Math.min(0.5, P.y * 0.07); d.shadow.scale.set(0.9 * ss, 1.4 * ss, 1);
+}
+
+// 直撃中・起き上がり中のポーズ。体の中心（高さ 1.5）を軸に回転させる
+function updateDinoHit(d, P) {
+  const th = P.tumble, t = P.stateT, C = 1.5;
+  d.air += (1 - d.air) * 0.5;
+  d.root.rotation.set(th, 0, 0);
+  d.root.position.set(0, P.y + C * (1 - Math.cos(th)), -C * Math.sin(th));
+  d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - Math.min(1, P.y / 6) * 0.6);
+  const ss = 1 - Math.min(0.5, P.y * 0.07); d.shadow.scale.set(0.9 * ss, 1.4 * ss, 1);
+  if (P.state === 'knocked') {   // 手足をばたつかせ、目を回して吹っ飛ぶ
+    d.body.position.y = 0; d.body.rotation.x = 0; d.body.scale.y = 1;
+    d.legs[0].rotation.x = Math.sin(t * 19) * 1.0; d.legs[1].rotation.x = Math.sin(t * 19 + 2.2) * 1.0;
+    d.tail1.rotation.y = Math.sin(t * 13) * 0.5; d.tail2.rotation.y = Math.sin(t * 13 - 1) * 0.6; d.tail1.rotation.x = d.tail2.rotation.x = 0;
+    d.head.rotation.x = -0.35;
+  } else {   // recover：うずくまりから、ふらつきながら立ち上がる
+    const f = Math.min(1, t / CFG.hit.recoverSec), e = f * f * (3 - 2 * f);
+    d.body.position.y = 0; d.body.rotation.x = (1 - e) * 0.25; d.body.scale.y = 0.7 + 0.3 * e;
+    d.legs[0].rotation.x = Math.sin(t * 9) * 0.35 * e; d.legs[1].rotation.x = -Math.sin(t * 9) * 0.35 * e;
+    d.tail1.rotation.y = Math.sin(t * 8) * 0.3; d.tail2.rotation.y = Math.sin(t * 8 - 1) * 0.4; d.tail1.rotation.x = d.tail2.rotation.x = 0;
+    d.head.rotation.x = 0.35 * (1 - e);
+  }
 }

@@ -18,13 +18,16 @@
   #boom.on{animation:boom 2.2s ease-out forwards}
   @keyframes boom{0%{opacity:0;transform:scale(.5)}8%{opacity:1;transform:scale(1.25) rotate(-2deg)}18%{transform:scale(1) rotate(1deg)}75%{opacity:1;transform:scale(1.05)}100%{opacity:0;transform:scale(1.12)}}
   #flash{position:fixed;inset:0;background:#ffb060;opacity:0;pointer-events:none}
+  #scream{position:fixed;left:0;right:0;top:44%;text-align:center;font-size:clamp(24px,6vw,96px);white-space:nowrap;font-weight:900;letter-spacing:.05em;color:#fff3c2;-webkit-text-stroke:3px #6a1000;text-shadow:0 0 20px #ff7a1a,0 5px 0 #4a0b00;pointer-events:none;opacity:0}
+  #scream.on{animation:scream 1.2s ease-out forwards}
+  @keyframes scream{0%{opacity:0;transform:scale(.4) rotate(-6deg)}10%{opacity:1;transform:scale(1.3) rotate(4deg)}20%{transform:scale(1) rotate(-3deg)}35%{transform:scale(1.08) rotate(2deg)}80%{opacity:1}100%{opacity:0;transform:scale(1.15) translateY(-20px)}}
   #mute{position:fixed;right:14px;top:18px;font-size:13px;opacity:.7;pointer-events:none;text-shadow:0 1px 6px #000}
 </style>
 </head>
 <body>
 <div id="view"></div>
 <div id="hud"><div id="dist">距離：0m</div></div>
-<div id="boom">ドゴォォォン！！！</div><div id="flash"></div><div id="mute">♪ ON (M)</div>
+<div id="boom">ドゴォォォン！！！</div><div id="scream">ギャーー！！</div><div id="flash"></div><div id="mute">♪ ON (M)</div>
 <div id="hint">← → / A D 移動 ・ Space ジャンプ ・ M 音ON/OFF</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -43,34 +46,105 @@ const CFG = {
              smokeMax: 450, fireMax: 380, ashMax: 650, emberMax: 200, canopyMax: 170,                                                    // パーティクル上限（煙 / 火花 / 火山灰 / 降る火の粉）
              windSpeed: 70, smokeLife: 9, ashBox: { x: 45, y: 32, z: 80 },                                                // 煙が手前へ流れる速さ / 煙の寿命 / 灰が降る範囲
              sky: { top: '#0a0203', mid: '#3a0a08', low: '#7a1c0e', bottom: '#a8300f' }, fogColor: 0x3a0e0a },             // 噴火後の空と霧の色
+  rock: { interval: 2.0, jitter: 0.35, firstDelay: 1.5, maxActive: 8,                                                       // 噴石：出現間隔（秒）/ ばらつき / 噴火してから最初の1個までの秒 / 同時に存在できる数
+          weights: { small: 0.58, mid: 0.37, large: 0.05 },                                                                 // 出現の重み（大型は Phase 6 で増やす）
+          aimChance: 0.5, aimJitterX: 2.5, aimJitterZ: 3, spreadX: 14, aheadExtra: 30, edgeMargin: 1, backDist: 22, sideOff: 6,   // 恐竜を狙う確率と誤差 / 狙わない時の左右幅と前方の余裕 / 落下の出発点（後方・横）
+          sizes: {   // radius=着弾の当たり半径（危険マーカー）/ vis=見た目の岩の半径 / warn=警告から着弾までの秒 / fallH=出発の高さ / power=吹き飛びの強さ / shake=画面揺れ
+            small: { radius: 2.2, vis: 0.75, warn: 0.9, fallH: 12, power: 0.55, shake: 0 },
+            mid:   { radius: 3.4, vis: 1.3,  warn: 1.2, fallH: 15, power: 1.0,  shake: 0.2 },
+            large: { radius: 6.2, vis: 2.8,  warn: 1.6, fallH: 19, power: 1.8,  shake: 0.55 } },
+          sparkMax: 600, dustMax: 360, craterMax: 10, craterLife: 4.5, ringMax: 8, shakeDecay: 6 },                          // 火の粉・土煙の粒数 / クレーター跡の数と残る秒 / 衝撃波リング数 / 揺れの収まる速さ
+  hit: { dinoR: 0.9, maxY: 1.5,                                                                                             // 恐竜の当たり半径 / これより高く跳んでいれば爆風の上を越える
+         knockBase: 0.75, knockPer: 0.5, kickSide: 9, kickUp: 12, kickFwd: 12, spin: 9,                                       // 吹き飛び：秒（基本＋強さ×）/ 横・上・前方への初速（×強さ）/ 回転（rad/s）
+         bounce: 0.42, bounceMin: 2.5, friction: 2.2, knockMul: 0.15,                                                        // バウンドの反発 / 止まる最小の落下速度 / 地面での減速 / 吹き飛び中の前進倍率
+         recoverSec: 0.7, recoverMul: 0.4, slowSec: 2.6, slowFactor: 0.55, slowRamp: 0.7,                                    // 起き上がりの秒と前進倍率 / 減速の続く秒と倍率 / 戻るまでにかける秒
+         invulnSec: 1.8, screamSec: 1.2 },                                                                                   // 復帰後の無敵（点滅）秒 / 「ギャーー」表示秒
   sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85 },                                                              // 全体音量 / 待機中・噴火中のゴゴゴ音量
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };
 // ===== 純ロジック（three.js 非依存。verify.html でテスト） =====
 function speedAt(t) { return Math.min(CFG.run.maxSpeed, CFG.run.baseSpeed + CFG.run.accel * t); }
 
-function newPlayer() { return { x: 0, y: 0, z: 0, vx: 0, vy: 0, grounded: true, speed: CFG.run.baseSpeed, time: 0, dist: 0 }; }
+// state: run（操作可）/ knocked（吹き飛び中・操作不能）/ recover（起き上がり中・操作不能）
+function newPlayer() {
+  return { x: 0, y: 0, z: 0, vx: 0, vy: 0, grounded: true, speed: CFG.run.baseSpeed, time: 0, dist: 0,
+           state: 'run', stateT: 0, knockT: 0, kvx: 0, kvf: 0, tumble: 0, spinRate: 0, power: 0, slow: 0, invuln: 0, hits: 0 };
+}
 
 function approach(v, target, amount) { return v < target ? Math.min(target, v + amount) : Math.max(target, v - amount); }
 
+// 噴石が地面に着弾したとき、恐竜に当たるか（地上付近にいて、無敵でなく、操作可能な状態のときだけ）
+function rockHitsPlayer(P, rx, rz, radius) {
+  const H = CFG.hit;
+  return P.state === 'run' && P.invuln <= 0 && P.y < H.maxY && Math.hypot(P.x - rx, P.z - rz) < radius + H.dinoR;
+}
+
+// 直撃：着弾中心から外向き＋上向き＋前方へ吹き飛ばす。size は 'small' | 'mid' | 'large'
+function knockPlayer(P, rx, rz, size) {
+  const H = CFG.hit, pw = CFG.rock.sizes[size].power, dx = P.x - rx;
+  const dir = Math.abs(dx) > 0.25 ? Math.sign(dx) : (P.x > 0 ? -1 : 1);   // ほぼ真下なら、広く空いている側へ
+  P.state = 'knocked'; P.stateT = 0; P.knockT = H.knockBase + H.knockPer * pw; P.power = pw;
+  P.kvx = dir * H.kickSide * pw; P.kvf = H.kickFwd * pw;
+  P.vx = 0; P.vy = H.kickUp * (0.6 + 0.4 * pw); P.y = Math.max(P.y, 0) + 0.01; P.grounded = false;
+  P.tumble = 0; P.spinRate = -H.spin * (0.7 + 0.3 * pw);
+  P.slow = H.slowSec * (0.5 + 0.5 * pw); P.hits++;
+  return true;
+}
+
+function stepKnocked(P, dt) {
+  const H = CFG.hit, M = CFG.move;
+  P.stateT += dt;
+  P.x += P.kvx * dt;
+  if (P.x > M.maxX) { P.x = M.maxX; P.kvx = -Math.abs(P.kvx) * 0.4; }
+  if (P.x < -M.maxX) { P.x = -M.maxX; P.kvx = Math.abs(P.kvx) * 0.4; }
+  P.vy -= CFG.jump.gravity * dt; P.y += P.vy * dt;
+  if (P.y <= 0) {
+    P.y = 0;
+    if (P.vy < -H.bounceMin) { P.vy = -P.vy * H.bounce; P.grounded = false; } else { P.vy = 0; P.grounded = true; }
+  }
+  const drag = Math.exp(-(P.grounded ? H.friction : 0.5) * dt);
+  P.kvx *= drag; P.kvf *= drag;
+  P.tumble += P.spinRate * dt * (P.grounded ? 0.3 : 1);
+  if (P.stateT >= P.knockT && (P.grounded || P.stateT >= P.knockT + 0.5)) {   // 吹き飛び終わり → 起き上がり
+    P.y = 0; P.vy = 0; P.grounded = true; P.kvx = 0; P.kvf = 0; P.vx = 0;
+    const TAU = Math.PI * 2; P.tumble -= TAU * Math.round(P.tumble / TAU);   // 一番近い「立ち姿」へ（見た目の巻き戻りを最小に）
+    P.state = 'recover'; P.stateT = 0;
+  }
+  return H.knockMul;
+}
+
 // inp = { left, right, jump }（jump は「押した瞬間」の 1 回分）。P を直接更新する
 function stepPlayer(P, inp, dt) {
-  const M = CFG.move, J = CFG.jump;
-  const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-  const air = !P.grounded;
-  if (dir !== 0) P.vx = approach(P.vx, dir * M.maxSpeed, M.accel * (air ? M.airAccelMul : 1) * dt);
-  else P.vx = approach(P.vx, 0, M.decel * (air ? M.airDecelMul : 1) * dt);
-  P.x += P.vx * dt;
-  if (P.x > M.maxX) { P.x = M.maxX; if (P.vx > 0) P.vx = 0; }
-  if (P.x < -M.maxX) { P.x = -M.maxX; if (P.vx < 0) P.vx = 0; }
-  if (inp.jump && P.grounded) { P.vy = J.velocity; P.grounded = false; }
-  if (!P.grounded) {
-    P.vy -= J.gravity * dt; P.y += P.vy * dt;
-    if (P.y <= 0) { P.y = 0; P.vy = 0; P.grounded = true; }
+  const M = CFG.move, J = CFG.jump, H = CFG.hit;
+  if (P.invuln > 0) P.invuln = Math.max(0, P.invuln - dt);
+  let mul = 1;
+  if (P.state === 'run') {
+    const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+    const air = !P.grounded;
+    if (dir !== 0) P.vx = approach(P.vx, dir * M.maxSpeed, M.accel * (air ? M.airAccelMul : 1) * dt);
+    else P.vx = approach(P.vx, 0, M.decel * (air ? M.airDecelMul : 1) * dt);
+    P.x += P.vx * dt;
+    if (P.x > M.maxX) { P.x = M.maxX; if (P.vx > 0) P.vx = 0; }
+    if (P.x < -M.maxX) { P.x = -M.maxX; if (P.vx < 0) P.vx = 0; }
+    if (inp.jump && P.grounded) { P.vy = J.velocity; P.grounded = false; }
+    if (!P.grounded) {
+      P.vy -= J.gravity * dt; P.y += P.vy * dt;
+      if (P.y <= 0) { P.y = 0; P.vy = 0; P.grounded = true; }
+    }
+    if (P.slow > 0) {   // 直撃のあとしばらく遅い。最後の slowRamp 秒でなめらかに元の速さへ
+      P.slow = Math.max(0, P.slow - dt);
+      mul = H.slowFactor + (1 - H.slowFactor) * (1 - Math.min(1, P.slow / H.slowRamp));
+    }
+  } else if (P.state === 'knocked') {
+    mul = stepKnocked(P, dt);
+  } else {   // recover：立ち上がるまで操作不能
+    P.stateT += dt; P.tumble *= Math.exp(-10 * dt); P.vx = 0; P.y = 0; P.vy = 0; P.grounded = true;
+    mul = H.recoverMul;
+    if (P.stateT >= H.recoverSec) { P.state = 'run'; P.stateT = 0; P.tumble = 0; P.invuln = H.invulnSec; }
   }
   P.time += dt;
-  P.speed = speedAt(P.time);
-  P.dist += P.speed * dt;
+  P.speed = speedAt(P.time) * mul;
+  P.dist += (P.speed + P.kvf) * dt;
   P.z = -P.dist;   // 前方は -z
 }
 
@@ -86,6 +160,66 @@ function volcanoState(t) {
   const e = t - V.eruptDelay, k = smooth01(e / V.rampTime);
   const sh = Math.max(0, 1 - e / V.shakeDur), fl = Math.max(0, 1 - e / V.flashDur);
   return { state: 'erupting', k, smoke: V.idleSmoke + (1 - V.idleSmoke) * k, shake: V.shakeAmp * sh * sh, flash: V.flashMax * fl * fl, boom: e < V.boomDur };
+}
+// ===== 噴石のスケジューラ（純ロジック。three.js 非依存） =====
+function rr(rng, a, b) { return a + (rng ? rng() : Math.random()) * (b - a); }
+
+function newRockSched() { return { timer: CFG.rock.firstDelay, rocks: [], nextId: 1 }; }
+
+function pickRockSize(r) {
+  const w = CFG.rock.weights, x = r * (w.small + w.mid + w.large);
+  return x < w.small ? 'small' : x < w.small + w.mid ? 'mid' : 'large';
+}
+
+// 落下地点：着弾までに恐竜が進む距離を見込んで前方にずらす。aimed なら恐竜の予想位置の近く、そうでなければ前方の荒野のどこか
+function pickRockTarget(P, size, rng) {
+  const R = CFG.rock, C = R.sizes[size], lim = CFG.move.maxX + R.edgeMargin;
+  const lead = Math.max(0, P.speed) * C.warn, aimed = rr(rng, 0, 1) < R.aimChance;
+  let x, z;
+  if (aimed) { x = P.x + rr(rng, -R.aimJitterX, R.aimJitterX); z = P.z - lead + rr(rng, -R.aimJitterZ, R.aimJitterZ); }
+  else { x = rr(rng, -R.spreadX, R.spreadX); z = P.z - lead - rr(rng, 3, R.aheadExtra); }
+  return { x: Math.max(-lim, Math.min(lim, x)), z, aimed };
+}
+
+// 噴石を1個追加（同時数が上限なら null）。warn は開発用の秒数上書き
+function spawnRock(S, size, x, z, rng, warn) {
+  if (S.rocks.length >= CFG.rock.maxActive) return null;
+  const C = CFG.rock.sizes[size];
+  const r = { id: S.nextId++, size, x, z, t: 0, warn: warn || C.warn, radius: C.radius, vis: C.vis, H: C.fallH,
+              ox: rr(rng, -CFG.rock.sideOff, CFG.rock.sideOff), oz: CFG.rock.backDist * rr(rng, 0.8, 1.2) };
+  S.rocks.push(r); return r;
+}
+
+// 飛行中の位置：後方の高い所から放物線で着弾点へ（y は着弾で 0）
+function rockPos(r) {
+  const u = Math.min(1, r.t / r.warn);
+  return { x: r.x + r.ox * (1 - u), y: r.H * (1 - u * u), z: r.z + r.oz * (1 - u), u };
+}
+
+// 1 フレーム進める。erupting のときだけ新しい噴石を出す。着弾した噴石は取り除き、直撃なら恐竜を吹き飛ばす
+function stepRocks(S, P, dt, erupting, rng) {
+  const R = CFG.rock, ev = { spawned: [], landed: [] };
+  if (erupting) {
+    S.timer -= dt;
+    if (S.timer <= 0) {
+      if (S.rocks.length < R.maxActive) {
+        const size = pickRockSize(rr(rng, 0, 1)), tg = pickRockTarget(P, size, rng), r = spawnRock(S, size, tg.x, tg.z, rng);
+        if (r) ev.spawned.push(r);
+        S.timer = R.interval * (1 + R.jitter * (rr(rng, 0, 1) * 2 - 1));
+      } else S.timer = 0.25;
+    }
+  }
+  const alive = [];
+  for (const r of S.rocks) {
+    if (ev.spawned.indexOf(r) < 0) r.t += dt;
+    if (r.t >= r.warn) {
+      const hit = rockHitsPlayer(P, r.x, r.z, r.radius);
+      if (hit) knockPlayer(P, r.x, r.z, r.size);
+      ev.landed.push({ rock: r, hit });
+    } else alive.push(r);
+  }
+  S.rocks = alive;
+  return ev;
 }
 // ===== 3D ステージ：空・フォグ・地面・装飾・カメラ =====
 const WORLD = {};
@@ -374,6 +508,150 @@ function updateVolcano(P, dt, fx) {
     if (VOL.hemi) VOL.hemi.color.copy(VOL.hemiA).lerp(VOL.hemiB, fx.k);
   }
 }
+// ===== 噴石の見た目：落下する燃える岩・危険マーカー・影・爆発・クレーター・画面揺れ（three.js） =====
+// 状態（いつ・どこに落ちるか）は 26-rock-logic.js の S.rocks が持つ。ここは毎フレームそれを映すだけ。
+const ROCKS = { shake: 0, frame: 0 };
+
+function buildRocks() {
+  const R = CFG.rock, scene = WORLD.scene, tex = makeSoftTexture();
+  ROCKS.sparks = makeParticles(R.sparkMax, true, tex);
+  ROCKS.dust = makeParticles(R.dustMax, false, tex);
+  ROCKS.sparks.cursor = 0; ROCKS.dust.cursor = 0;
+  scene.add(ROCKS.dust.pts, ROCKS.sparks.pts);
+
+  // 共有ジオメトリ（半径1）。地面に貼るものは XY 平面で作り、親の回転で寝かせる
+  const rockGeo = new THREE.DodecahedronGeometry(1, 1), rp = rockGeo.attributes.position;
+  for (let i = 0; i < rp.count; i++) { const k = 1 + Math.sin(rp.getX(i) * 7.1 + rp.getY(i) * 3.3 + rp.getZ(i) * 5.7) * 0.13; rp.setXYZ(i, rp.getX(i) * k, rp.getY(i) * k, rp.getZ(i) * k); }
+  rockGeo.computeVertexNormals();
+  const ringGeo = new THREE.RingGeometry(0.9, 1, 48), discGeo = new THREE.CircleGeometry(1, 40);
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0x2a1b17, emissive: 0xff4a10, emissiveIntensity: 0.65, flatShading: true });
+  const glowMat = new THREE.SpriteMaterial({ map: tex, color: 0xff7a24, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: 0.85 });
+  const flat = (geo, color, additive) => {
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    m.rotation.x = -Math.PI / 2; m.visible = false; scene.add(m); return m;
+  };
+  ROCKS.flat = flat;
+
+  ROCKS.slots = [];
+  for (let i = 0; i < R.maxActive; i++) {
+    const body = new THREE.Group(), mesh = new THREE.Mesh(rockGeo, rockMat), glow = new THREE.Sprite(glowMat);
+    body.add(mesh, glow); body.visible = false; scene.add(body);
+    ROCKS.slots.push({ id: 0, seen: 0, body, mesh, glow, acc: 0, acc2: 0,
+      shadow: flat(discGeo, 0x000000), disc: flat(discGeo, 0xff1a0a), ring: flat(ringGeo, 0xff3a1a) });
+  }
+  ROCKS.byId = new Map();
+
+  ROCKS.rings = []; for (let i = 0; i < R.ringMax; i++) ROCKS.rings.push({ t: 99, life: 0.5, R: 1, mesh: flat(ringGeo, 0xffc080, true) });
+  ROCKS.craters = []; for (let i = 0; i < R.craterMax; i++) ROCKS.craters.push({ t: 99, R: 1, dark: flat(discGeo, 0x120a08), glow: flat(discGeo, 0xff5a14, true) });
+  ROCKS.ringI = 0; ROCKS.craterI = 0;
+}
+
+// 粒を1つ出す（古いものから上書きするリングバッファ）。kind：火の粉＝無視 / 土煙＝0 茶 1 黒
+function fxEmit(S, x, y, z, vx, vy, vz, life, size, alpha, kind) {
+  const i = S.cursor = (S.cursor + 1) % S.max;
+  S.age[i] = 0; S.life[i] = life; S.s0[i] = size; S.a0[i] = alpha; S.seed[i] = kind || 0;
+  S.pos[i * 3] = x; S.pos[i * 3 + 1] = y; S.pos[i * 3 + 2] = z; S.vel[i * 3] = vx; S.vel[i * 3 + 1] = vy; S.vel[i * 3 + 2] = vz;
+}
+
+function fxStep(S, dt, spark) {
+  const drag = Math.exp(-1.8 * dt);
+  for (let i = 0; i < S.max; i++) {
+    if (S.age[i] >= S.life[i]) { S.alpha[i] = 0; continue; }
+    S.age[i] += dt; const f = Math.min(1, S.age[i] / S.life[i]), j = i * 3;
+    if (spark) {
+      S.vel[j + 1] -= 22 * dt;
+      S.pos[j] += S.vel[j] * dt; S.pos[j + 1] += S.vel[j + 1] * dt; S.pos[j + 2] += S.vel[j + 2] * dt;
+      if (S.pos[j + 1] < 0.05) { S.pos[j + 1] = 0.05; S.vel[j + 1] *= -0.3; S.vel[j] *= 0.6; S.vel[j + 2] *= 0.6; }
+      S.size[i] = S.s0[i] * (1 - 0.6 * f); S.alpha[i] = S.a0[i] * (1 - f) * (1 - f);
+      S.col[j] = 1; S.col[j + 1] = 0.8 - 0.55 * f; S.col[j + 2] = 0.3 - 0.25 * f;
+    } else {
+      S.vel[j] *= drag; S.vel[j + 1] = S.vel[j + 1] * drag + 1.5 * dt; S.vel[j + 2] *= drag;
+      S.pos[j] += S.vel[j] * dt; S.pos[j + 1] += S.vel[j + 1] * dt; S.pos[j + 2] += S.vel[j + 2] * dt;
+      S.size[i] = S.s0[i] * (0.5 + f * 1.6); S.alpha[i] = S.a0[i] * Math.min(1, f * 10) * (1 - f);
+      const dark = S.seed[i] > 0.5; S.col[j] = dark ? 0.13 : 0.36; S.col[j + 1] = dark ? 0.11 : 0.28; S.col[j + 2] = dark ? 0.1 : 0.22;
+    }
+  }
+}
+
+function rockSlotFor(r) {
+  let sl = ROCKS.byId.get(r.id);
+  if (sl) return sl;
+  sl = ROCKS.slots.find(s => !s.id); if (!sl) return null;
+  sl.id = r.id; ROCKS.byId.set(r.id, sl);
+  const v = r.vis; sl.body.scale.setScalar(v); sl.glow.scale.setScalar(4.2);
+  sl.mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); sl.spin = [rnd(-4, 4), rnd(-4, 4), rnd(-3, 3)];
+  sl.body.visible = true; sl.shadow.visible = sl.disc.visible = sl.ring.visible = true;
+  sndRockFall(r.warn - r.t, r.size);
+  return sl;
+}
+
+function rockRelease(sl) {
+  ROCKS.byId.delete(sl.id); sl.id = 0;
+  sl.body.visible = sl.shadow.visible = sl.disc.visible = sl.ring.visible = false;
+}
+
+// 飛行中の噴石・危険マーカー・影を映す。毎フレーム呼ぶ
+function syncRocks(S, dt) {
+  ROCKS.frame++; const T = VOL.t;
+  for (const r of S.rocks) {
+    const sl = rockSlotFor(r); if (!sl) continue;
+    sl.seen = ROCKS.frame;
+    const p = rockPos(r), u = p.u, big = r.size === 'large', rad = r.radius;
+    sl.body.position.set(p.x, p.y + r.vis * 0.9, p.z);
+    sl.mesh.rotation.x += sl.spin[0] * dt; sl.mesh.rotation.y += sl.spin[1] * dt; sl.mesh.rotation.z += sl.spin[2] * dt;
+    // 危険マーカー：内側の赤い円が時間とともに濃くなり、脈動も速くなる
+    const pulse = 0.5 + 0.5 * Math.sin(T * (9 + 16 * u));
+    sl.ring.position.set(r.x, 0.07, r.z); sl.ring.scale.set(rad * (1 + 0.025 * pulse), rad * (1 + 0.025 * pulse), 1); sl.ring.material.opacity = 0.65 + 0.35 * pulse;
+    sl.disc.position.set(r.x, 0.06, r.z); sl.disc.scale.set(rad, rad, 1); sl.disc.material.opacity = 0.1 + 0.3 * u + 0.1 * pulse * u;
+    // 影：高い所では小さく薄く、落ちてくるほど広がって濃くなる（大型は着弾範囲いっぱいに覆いかぶさる）
+    const sMax = big ? rad * 1.15 : r.vis * 2.2, sg = 0.2 + 0.8 * u;
+    sl.shadow.position.set(r.x, 0.05, r.z); sl.shadow.scale.set(sMax * sg, sMax * sg, 1); sl.shadow.material.opacity = (big ? 0.2 + 0.4 * u : 0.1 + 0.25 * u);
+    // 尾を引く火の粉と煙
+    sl.acc += dt * (70 + 30 * r.vis); sl.acc2 += dt * 28;
+    const px = p.x, py = p.y + r.vis * 0.9, pz = p.z, spread = 2 + r.vis * 2;
+    while (sl.acc >= 1) { sl.acc -= 1; fxEmit(ROCKS.sparks, px + rnd(-1, 1) * r.vis * 0.6, py + rnd(-1, 1) * r.vis * 0.6, pz + rnd(-1, 1) * r.vis * 0.6, rnd(-spread, spread) + r.ox * 0.25, rnd(2, 8), rnd(-spread, spread) + r.oz * 0.25, rnd(0.35, 0.7), rnd(0.9, 1.7) * (0.6 + r.vis * 0.5), 1, 0); }
+    while (sl.acc2 >= 1) { sl.acc2 -= 1; fxEmit(ROCKS.dust, px, py, pz, rnd(-1.5, 1.5), rnd(0, 3), rnd(-1.5, 1.5), rnd(0.8, 1.3), (2 + r.vis * 2.2), 0.55, 1); }
+  }
+  for (const sl of ROCKS.slots) if (sl.id && sl.seen !== ROCKS.frame) rockRelease(sl);
+}
+
+// 着弾：爆発（火花・土煙・衝撃波）・クレーター跡・画面揺れ・音
+function rockImpact(r, hit) {
+  const R = CFG.rock, C = R.sizes[r.size], v = r.vis;
+  const nS = Math.round(24 + v * 16), nD = Math.round(14 + v * 10);
+  for (let i = 0; i < nS; i++) {
+    const a = rnd(0, 6.283), up = rnd(0.35, 1), sp = rnd(6, 18) * (0.6 + v * 0.3);
+    fxEmit(ROCKS.sparks, r.x, 0.3, r.z, Math.cos(a) * sp * (1 - up * 0.4), up * sp * 1.1, Math.sin(a) * sp * (1 - up * 0.4), rnd(0.6, 1.2), rnd(1.4, 3) * (0.6 + v * 0.4), 1, 0);
+  }
+  for (let i = 0; i < nD; i++) {
+    const a = rnd(0, 6.283), sp = rnd(4, 10) * (0.7 + v * 0.2);
+    fxEmit(ROCKS.dust, r.x + Math.cos(a) * v, 0.4, r.z + Math.sin(a) * v, Math.cos(a) * sp, rnd(0.5, 3.5), Math.sin(a) * sp, rnd(1.1, 2), (2.5 + v * 2.2) * rnd(0.8, 1.3), 0.7, i % 3 === 0 ? 1 : 0);
+  }
+  const rg = ROCKS.rings[ROCKS.ringI]; ROCKS.ringI = (ROCKS.ringI + 1) % ROCKS.rings.length;
+  rg.t = 0; rg.life = 0.35 + v * 0.1; rg.R = C.radius * 1.5; rg.mesh.position.set(r.x, 0.1, r.z); rg.mesh.visible = true;
+  const cr = ROCKS.craters[ROCKS.craterI]; ROCKS.craterI = (ROCKS.craterI + 1) % ROCKS.craters.length;
+  cr.t = 0; cr.R = v * 1.25; cr.dark.position.set(r.x, 0.045, r.z); cr.glow.position.set(r.x, 0.055, r.z); cr.dark.visible = cr.glow.visible = true;
+  ROCKS.shake = Math.max(ROCKS.shake, C.shake);
+  sndRockImpact(r.size);
+}
+
+function updateRocksFx(dt) {
+  const R = CFG.rock;
+  fxStep(ROCKS.sparks, dt, true); fxStep(ROCKS.dust, dt, false); pflush(ROCKS.sparks); pflush(ROCKS.dust);
+  for (const g of ROCKS.rings) {
+    if (g.t > g.life) { g.mesh.visible = false; continue; }
+    g.t += dt; const f = Math.min(1, g.t / g.life), s = g.R * (0.25 + 0.75 * (1 - (1 - f) * (1 - f)));
+    g.mesh.scale.set(s, s, 1); g.mesh.material.opacity = 0.9 * (1 - f);
+  }
+  for (const c of ROCKS.craters) {
+    if (c.t > R.craterLife) { c.dark.visible = c.glow.visible = false; continue; }
+    c.t += dt; const f = c.t / R.craterLife;
+    c.dark.scale.set(c.R, c.R, 1); c.dark.material.opacity = 0.6 * Math.min(1, (1 - f) * 3.5);
+    const gf = Math.max(0, 1 - c.t / 1.0); c.glow.scale.set(c.R * 0.8, c.R * 0.8, 1); c.glow.material.opacity = 0.7 * gf * gf;
+    if (gf <= 0) c.glow.visible = false;
+  }
+  ROCKS.shake *= Math.exp(-R.shakeDecay * dt); if (ROCKS.shake < 0.004) ROCKS.shake = 0;
+}
 // ===== 恐竜（基本 Geometry だけのコミカルな1種類）。頭は -z 向き =====
 function buildDino() {
   const D = CFG.dino;
@@ -432,6 +710,9 @@ function updateDino(d, P, dt) {
   d.air += ((P.grounded ? 0 : 1) - d.air) * (1 - Math.exp(-14 * dt));   // 空中ポーズへのなめらかな切り替え
   const sw = Math.sin(d.phase), a = d.air, g = 1 - a;
   d.group.position.set(P.x, 0, P.z);
+  d.group.visible = !(P.invuln > 0 && Math.floor(P.time * 14) % 2 === 0);   // 復帰後の無敵中は点滅
+  if (P.state !== 'run') { updateDinoHit(d, P); return; }
+  d.root.position.z = 0; d.root.rotation.x = 0; d.body.scale.y = 1;
   d.root.position.y = P.y;
   d.root.rotation.z = -P.vx * D.lean; d.root.rotation.y = -P.vx * D.lean * 0.7;
   d.body.position.y = g * Math.abs(sw) * D.bob;
@@ -445,6 +726,28 @@ function updateDino(d, P, dt) {
   d.head.rotation.x = g * -Math.sin(d.phase * 2) * 0.05 - a * 0.15;
   d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - Math.min(1, P.y / 6) * 0.6);
   const ss = 1 - Math.min(0.5, P.y * 0.07); d.shadow.scale.set(0.9 * ss, 1.4 * ss, 1);
+}
+
+// 直撃中・起き上がり中のポーズ。体の中心（高さ 1.5）を軸に回転させる
+function updateDinoHit(d, P) {
+  const th = P.tumble, t = P.stateT, C = 1.5;
+  d.air += (1 - d.air) * 0.5;
+  d.root.rotation.set(th, 0, 0);
+  d.root.position.set(0, P.y + C * (1 - Math.cos(th)), -C * Math.sin(th));
+  d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - Math.min(1, P.y / 6) * 0.6);
+  const ss = 1 - Math.min(0.5, P.y * 0.07); d.shadow.scale.set(0.9 * ss, 1.4 * ss, 1);
+  if (P.state === 'knocked') {   // 手足をばたつかせ、目を回して吹っ飛ぶ
+    d.body.position.y = 0; d.body.rotation.x = 0; d.body.scale.y = 1;
+    d.legs[0].rotation.x = Math.sin(t * 19) * 1.0; d.legs[1].rotation.x = Math.sin(t * 19 + 2.2) * 1.0;
+    d.tail1.rotation.y = Math.sin(t * 13) * 0.5; d.tail2.rotation.y = Math.sin(t * 13 - 1) * 0.6; d.tail1.rotation.x = d.tail2.rotation.x = 0;
+    d.head.rotation.x = -0.35;
+  } else {   // recover：うずくまりから、ふらつきながら立ち上がる
+    const f = Math.min(1, t / CFG.hit.recoverSec), e = f * f * (3 - 2 * f);
+    d.body.position.y = 0; d.body.rotation.x = (1 - e) * 0.25; d.body.scale.y = 0.7 + 0.3 * e;
+    d.legs[0].rotation.x = Math.sin(t * 9) * 0.35 * e; d.legs[1].rotation.x = -Math.sin(t * 9) * 0.35 * e;
+    d.tail1.rotation.y = Math.sin(t * 8) * 0.3; d.tail2.rotation.y = Math.sin(t * 8 - 1) * 0.4; d.tail1.rotation.x = d.tail2.rotation.x = 0;
+    d.head.rotation.x = 0.35 * (1 - e);
+  }
 }
 // ===== キー入力（PC のみ） =====
 const KEYS = { left: false, right: false, jumpQ: false };
@@ -511,6 +814,42 @@ function sndUpdate(fx) {
   SND.hissG.gain.setTargetAtTime(0.18 * fx.k, now, 0.4);
 }
 
+// 噴石の落下音「ヒュゥゥゥ」：高い音から低い音へ。大きい石ほど低く重い。dur=着弾までの秒
+function sndRockFall(dur, size) {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const big = size === 'large' ? 2 : size === 'mid' ? 1 : 0, t = c.currentTime;
+  const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16 + big * 0.06, t + dur * 0.85); g.gain.linearRampToValueAtTime(0, t + dur + 0.03); g.connect(SND.master);
+  const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(2300 - big * 600, t); o.frequency.exponentialRampToValueAtTime(520 - big * 120, t + dur);
+  o.connect(g); o.start(t); o.stop(t + dur + 0.05);
+  const n = c.createBufferSource(); n.buffer = SND.white; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 3;
+  bp.frequency.setValueAtTime(1800 - big * 400, t); bp.frequency.exponentialRampToValueAtTime(400, t + dur);
+  const ng = c.createGain(); ng.gain.value = 0.6; n.connect(bp); bp.connect(ng); ng.connect(g); n.start(t); n.stop(t + dur + 0.05);
+}
+
+// 着弾「ドゴン！」：サイズで重さを変える（低音スイープ＋ノイズ）
+function sndRockImpact(size) {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const P = { small: [150, 45, 0.5, 0.7], mid: [110, 32, 0.85, 1.0], large: [80, 20, 1.5, 1.5] }[size] || [110, 32, 0.85, 1];
+  const t = c.currentTime;
+  const og = c.createGain(); og.gain.setValueAtTime(P[3], t); og.gain.exponentialRampToValueAtTime(0.001, t + P[2]); og.connect(SND.master);
+  const o = c.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(P[0], t); o.frequency.exponentialRampToValueAtTime(P[1], t + P[2] * 0.8);
+  o.connect(og); o.start(t); o.stop(t + P[2] + 0.05);
+  const ng = c.createGain(); ng.gain.setValueAtTime(P[3] * 0.8, t); ng.gain.exponentialRampToValueAtTime(0.001, t + P[2] * 0.7); ng.connect(SND.master);
+  const n = c.createBufferSource(); n.buffer = SND.white; const f = c.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(2500, t); f.frequency.exponentialRampToValueAtTime(80, t + P[2] * 0.6);
+  n.connect(f); f.connect(ng); n.start(t); n.stop(t + P[2] + 0.05);
+}
+
+// 恐竜の悲鳴「ギャーー」：のこぎり波を上から下へ、ビブラート付き
+function sndScream() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.28, t + 0.05); g.gain.exponentialRampToValueAtTime(0.001, t + 0.9); g.connect(SND.master);
+  const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2; f.frequency.setValueAtTime(1400, t); f.frequency.exponentialRampToValueAtTime(600, t + 0.8); f.connect(g);
+  const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(620, t); o.frequency.exponentialRampToValueAtTime(240, t + 0.85);
+  const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 15; lg.gain.value = 28; l.connect(lg); lg.connect(o.frequency);
+  o.connect(f); o.start(t); l.start(t); o.stop(t + 0.95); l.stop(t + 0.95);
+}
+
 function sndToggleMute() {
   SND.muted = !SND.muted;
   if (SND.master) SND.master.gain.setTargetAtTime(SND.muted ? 0 : CFG.sound.master, SND.ctx.currentTime, 0.05);
@@ -524,20 +863,27 @@ function bindSound() {
 // ===== 起動・メインループ =====
 (function () {
   if (typeof THREE === 'undefined') { document.getElementById('hint').textContent = 'three.js を読み込めませんでした（ネット接続を確認してください）'; return; }
-  buildWorld(); buildVolcano();
-  const $boom = document.getElementById('boom'), $flash = document.getElementById('flash');
+  buildWorld(); buildVolcano(); buildRocks();
+  const $boom = document.getElementById('boom'), $flash = document.getElementById('flash'), $scream = document.getElementById('scream');
   let erupted = false, fx = volcanoState(0);
   const dino = buildDino(); WORLD.scene.add(dino.group);
-  const P = newPlayer();
+  const P = newPlayer(), RS = newRockSched();
   const $dist = document.getElementById('dist');
   let shown = -1;
 
+  function showScream() { $scream.classList.remove('on'); void $scream.offsetWidth; $scream.classList.add('on'); }
+
   function update(dt) {
+    // 吹き飛び・起き上がり中は stepPlayer が入力を無視する
     stepPlayer(P, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
     KEYS.jumpQ = false;
+    fx = volcanoState(P.time);
+    const ev = stepRocks(RS, P, dt, fx.state === 'erupting');   // 噴火後だけ噴石が降る。着弾で直撃判定
+    syncRocks(RS, dt);
+    ev.landed.forEach(l => { rockImpact(l.rock, l.hit); if (l.hit) { showScream(); sndScream(); } });
+    updateRocksFx(dt);
     updateDino(dino, P, dt);
     updateWorld(P, dt);
-    fx = volcanoState(P.time);
     if (fx.state === 'erupting' && !erupted) { erupted = true; $boom.classList.add('on'); sndBoom(); }
     updateVolcano(P, dt, fx);
     sndUpdate(fx);
@@ -546,13 +892,20 @@ function bindSound() {
       WORLD.camera.position.x += Math.sin(P.time * 61) * fx.shake;
       WORLD.camera.position.y += Math.cos(P.time * 47) * fx.shake * 0.8;
     }
+    if (ROCKS.shake > 0) {   // 噴石着弾の揺れ（位置のみ。大型は強め・中型は弱め）
+      WORLD.camera.position.x += Math.sin(P.time * 83) * ROCKS.shake;
+      WORLD.camera.position.y += Math.cos(P.time * 71) * ROCKS.shake * 0.8;
+    }
     const m = Math.floor(P.dist);
     if (m !== shown) { shown = m; $dist.textContent = '距離：' + m + 'm'; }
   }
 
   bindInput(); bindSound();
-  // 確認用：状態の読み取りと、1 フレーム進める口
-  window.GAME = { P, KEYS, CFG, dino, WORLD, VOL, SND, get fx() { return fx; }, step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); } };
+  // 確認用：状態の読み取りと、1 フレーム進める口。dropRock(size, x, z, warn?) = 指定位置へ今すぐ噴石を落とす（warn は着弾までの秒の上書き）
+  window.GAME = { P, KEYS, CFG, dino, WORLD, VOL, SND, RS, ROCKS, get fx() { return fx; },
+    step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); },
+    dropRock: (size, x, z, warn) => spawnRock(RS, size, x, z, null, warn),
+    dropRockOnDino: (size, warn) => { const w = warn || CFG.rock.sizes[size].warn; return spawnRock(RS, size, P.x, P.z - P.speed * w, null, warn); } };
   let last = performance.now();
   (function loop(now) {
     const dt = Math.max(0, Math.min(CFG.dt.max, (now - last) / 1000)); last = now;
