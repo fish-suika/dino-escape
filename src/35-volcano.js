@@ -185,3 +185,9 @@ function updateVolcano(P, dt, fx) {
     if (VOL.hemi) VOL.hemi.color.copy(VOL.hemiA).lerp(VOL.hemiB, fx.k);
   }
 }
+
+// 再スタート用：噴火前の状態へ（煙・火の粒を消し、空と霧を元の色に戻す）
+function resetVolcano() {
+  VOL.t = 0; VOL.skyK = -1;
+  [VOL.smoke, VOL.fire].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.budget = 0; });
+}

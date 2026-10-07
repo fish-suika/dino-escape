@@ -47,7 +47,13 @@ const CFG = {
          bounce: 0.42, bounceMin: 2.5, friction: 2.2, knockMul: 0.15,                                                        // バウンドの反発 / 止まる最小の落下速度 / 地面での減速 / 吹き飛び中の前進倍率
          recoverSec: 0.7, recoverMul: 0.4, slowSec: 2.6, slowFactor: 0.55, slowRamp: 0.7,                                    // 起き上がりの秒と前進倍率 / 減速の続く秒と倍率 / 戻るまでにかける秒
          invulnSec: 1.8, screamSec: 1.2 },                                                                                   // 復帰後の無敵（点滅）秒 / 「ギャーー」表示秒
-  sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85 },                                                              // 全体音量 / 待機中・噴火中のゴゴゴ音量
+  magma: { startGap: 60, speed0: 14, accel: 0.06, speedMax: 26,                                                             // 噴火時の先端との距離(u) / 噴火直後の速さ / 加速(u/s²) / 上限（プレイヤーの基準速度 16〜34 と比べる）
+           deathOvershoot: 6, deathSec: 1.5, deathSink: 3.2, overlayDelay: 1.6,                                              // 死亡時に先端がプレイヤーを越えて止まる距離 / 沈む秒 / 沈む深さ / GAME OVER 表示までの秒
+           width: 560, length: 260, crestH: 3.8,                                                                              // 溶岩の幅（左右の外まで）/ 奥行き / 波頭の高さ
+           heatRange: 55, glowBase: 0.1, wobble: 3, shakeRange: 26, shakeAmp: 0.16, audibleRange: 140,                        // 熱ゆらぎ・赤みが出始める距離 / 噴火後の下端の照り返し最小値 / 熱ゆらぎ(px) / 揺れが出る距離・大きさ / 音が聞こえ始める距離
+           dangerGaps: [110, 75, 50, 28, 14],                                                                                 // HUD ゲージの点灯しきい値（この距離より近いと点が1つずつ点く）
+           sparkMax: 260, steamMax: 140, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
+  sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };
 // ===== 純ロジック（three.js 非依存。verify.html でテスト） =====
@@ -208,6 +214,69 @@ function stepRocks(S, P, dt, erupting, rng) {
   }
   S.rocks = alive;
   return ev;
+}
+// ===== マグマと一回のゲーム進行（純ロジック。three.js 非依存） =====
+// 位置は「走行距離（dist）の座標」で持つ。M.front＝マグマ先端の位置、P.dist＝プレイヤーの位置。前方ほど大きい
+// 差（gap）= P.dist - M.front が 0 以下になったらゲームオーバー（ジャンプ中でも関係なし）
+function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+
+function newMagma() { return { phase: 'playing', active: false, front: -CFG.magma.startGap, speed: 0, t: 0, deadT: 0, deathDist: 0 }; }
+function newGame() { return { P: newPlayer(), M: newMagma(), RS: newRockSched() }; }
+
+// 噴火してから e 秒後のマグマの速さ
+function magmaSpeedAt(e) { const C = CFG.magma; return Math.min(C.speedMax, C.speed0 + C.accel * Math.max(0, e)); }
+function magmaGap(M, P) { return P.dist - M.front; }
+// 近さ 0〜1（range 以上離れていれば 0、接触で 1）
+function magmaProx(gap, range) { return clamp01(1 - gap / range); }
+// HUD のゲージ：点灯する点の数（0〜dangerGaps.length）。近いほど多い
+function magmaDanger(gap) { let n = 0; for (const g of CFG.magma.dangerGaps) if (gap < g) n++; return n; }
+
+// マグマを 1 フレーム進める。このフレームで追いつかれたら true
+function stepMagma(M, P, dt, erupting) {
+  const C = CFG.magma;
+  if (M.phase === 'dead') {   // 死亡後：先端はプレイヤーを少し越えるまで進んで止まる（溶岩面が恐竜に被さる）
+    M.deadT += dt;
+    const cap = M.deathDist + C.deathOvershoot;
+    M.speed = 0;
+    M.front += (cap - M.front) * (1 - Math.exp(-6 * dt));   // なめらかに越えて止まる（cap は超えない）
+    return false;
+  }
+  if (!M.active) {
+    M.front = P.dist - C.startGap;   // 噴火前は動かない（常に startGap だけ後ろで待機）
+    if (!erupting) return false;
+    M.active = true;
+  }
+  M.t += dt; M.speed = magmaSpeedAt(M.t); M.front += M.speed * dt;
+  if (P.dist - M.front <= 0) {
+    M.phase = 'dead'; M.deadT = 0; M.deathDist = P.dist; M.front = P.dist;
+    P.state = 'dead'; P.stateT = 0; P.vx = 0; P.vy = 0; P.kvx = 0; P.kvf = 0; P.invuln = 0; P.slow = 0; P.tumble = 0;
+    if (P.y < 0.05) { P.y = 0; P.grounded = true; }
+    return true;
+  }
+  return false;
+}
+
+// ゲーム全体を 1 フレーム進める。G = { P, M, RS }。playing の間だけ前進・操作・噴石の新規生成が動く。
+// dead の間はプレイヤーは動かず（P.stateT は死亡演出の経過秒）、噴石は新しく出ないが、すでに落下中のものは着弾する。
+function stepGame(G, inp, dt, rng) {
+  const { P, M, RS } = G, ev = { spawned: [], landed: [], died: false };
+  if (M.phase === 'playing') {
+    stepPlayer(P, inp, dt);
+    const erupting = volcanoState(P.time).state === 'erupting';
+    const r = stepRocks(RS, P, dt, erupting, rng); ev.spawned = r.spawned; ev.landed = r.landed;
+    ev.died = stepMagma(M, P, dt, erupting);
+  } else {
+    P.stateT += dt;
+    const r = stepRocks(RS, P, dt, false, rng); ev.landed = r.landed;
+    stepMagma(M, P, dt, false);
+  }
+  return ev;
+}
+
+// 全状態を初期化（オブジェクトの参照は変えず、中身だけ入れ替える）
+function resetGame(G) {
+  Object.assign(G.P, newPlayer()); Object.assign(G.M, newMagma()); Object.assign(G.RS, newRockSched());
+  return G;
 }
 // ===== 検証（three.js を使わない純粋ロジック） =====
 const $out = document.getElementById('out');
@@ -467,6 +536,91 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   check('着弾の瞬間に真下の恐竜がいれば直撃 → knocked', ev2.landed.length === 1 && ev2.landed[0].hit && P2.state === 'knocked');
   const S3 = newRockSched(); let cnt = 0; for (let i = 0; i < 20; i++) if (spawnRock(S3, 'small', 0, -50, lcg(i))) cnt++;
   check('spawnRock は maxActive を超えると null を返す', cnt === RK.maxActive && spawnRock(S3, 'small', 0, 0) === null);
+})();
+
+// ===== マグマ・ゲームオーバー =====
+(() => {
+  const MC = CFG.magma, DT = 1 / 60, NOI = { left: false, right: false, jump: false };
+  const quiet = () => { const G = newGame(); G.RS.timer = 1e9; return G; };   // 噴石が出ない設定（マグマだけを見る）
+  const go = (G, sec, inp) => { for (let i = 0, n = Math.round(sec / DT); i < n; i++) stepGame(G, inp || NOI, DT); return G; };
+
+  check('設定：序盤のマグマは基準速度より遅く、上限もプレイヤーの上限以下', MC.speed0 < CFG.run.baseSpeed && MC.speedMax <= CFG.run.maxSpeed);
+  check('マグマの速度は噴火直後 speed0 → 時間で単調に上がり → speedMax で頭打ち', magmaSpeedAt(0) === MC.speed0 && magmaSpeedAt(60) > magmaSpeedAt(10) && magmaSpeedAt(1e6) === MC.speedMax);
+  check('速度は単調増加', (() => { let p = 0; for (let t = 0; t < 2000; t += 5) { const s = magmaSpeedAt(t); if (s < p) return false; p = s; } return true; })());
+
+  const P0 = newPlayer(), M0 = newMagma();
+  check('開始時：マグマは playing・未始動・startGap だけ後方', M0.phase === 'playing' && !M0.active && Math.abs(magmaGap(M0, P0) - MC.startGap) < 1e-9);
+  check('距離計算：gap = P.dist - M.front', (() => { const P = newPlayer(), M = newMagma(); P.dist = 100; M.front = 70; return magmaGap(M, P) === 30; })());
+  check('近さ：離れていれば 0・接触で 1・範囲内は単調', magmaProx(1000, 55) === 0 && magmaProx(0, 55) === 1 && magmaProx(20, 55) > magmaProx(40, 55));
+  check('HUD ゲージ：近いほど点灯数が増える（0〜5）', magmaDanger(500) === 0 && magmaDanger(0) === MC.dangerGaps.length && magmaDanger(40) > magmaDanger(80));
+
+  const A = quiet(); go(A, CFG.volcano.eruptDelay - 0.5);
+  check('噴火前はマグマは動かない（常に startGap だけ後方）', !A.M.active && Math.abs(magmaGap(A.M, A.P) - MC.startGap) < 1e-6, 'gap ' + magmaGap(A.M, A.P));
+  go(A, 1.0 + 0.2); const f0 = A.M.front; go(A, 1);
+  check('噴火が始まるとマグマが動き出す（前進する）', A.M.active && A.M.front > f0 && A.M.t > 1, 'front ' + f0 + ' -> ' + A.M.front);
+  check('動き出した直後の間隔は startGap 程度', (() => { const B = quiet(); go(B, CFG.volcano.eruptDelay + 0.05); return Math.abs(magmaGap(B.M, B.P) - MC.startGap) < 3; })());
+
+  // 走り続ける（被弾なし）場合の余裕
+  const B = quiet(); let minGap = 1e9, catchT = -1, t = 0;
+  while (t < 900 && catchT < 0) { stepGame(B, NOI, DT); t += DT; if (B.M.active) minGap = Math.min(minGap, magmaGap(B.M, B.P)); if (B.M.phase === 'dead') catchT = t; }
+  check('被弾せず走り続ければ追いつかれない（900 秒走っても。少なくとも 40 秒は余裕）', catchT < 0, 'caught at ' + catchT);
+  check('走り続けている間の最小間隔は 20u 以上（60 秒時点）', (() => { const C = quiet(); go(C, CFG.volcano.eruptDelay + 60); return magmaGap(C.M, C.P) > 20; })());
+  window.__magmaCatchT = catchT; window.__minGap = minGap;
+
+  // 被弾で減速（強制的に低速）すると追いつかれる
+  const S = quiet(); S.P.slow = 1e9; let st = 0; while (S.M.phase === 'playing' && st < 120) { stepGame(S, NOI, DT); st += DT; }
+  check('ずっと減速していればマグマに追いつかれて dead になる', S.M.phase === 'dead' && S.P.state === 'dead', 'phase ' + S.M.phase + ' t ' + st);
+  check('接触したとき先端はプレイヤーの位置（deathDist = P.dist = M.front）', Math.abs(S.M.deathDist - S.P.dist) < 1e-9 && Math.abs(S.M.front - S.P.dist) < 1e-6);
+
+  // 1 発の被弾では死なず、立て続けに被弾すると死ぬ
+  function hitsRun(interval, sec) {
+    const C = quiet(); let hits = 0, since = 1e9; go(C, CFG.volcano.eruptDelay + 3);
+    for (let i = 0, n = Math.round(sec / DT); i < n && C.M.phase === 'playing'; i++) {
+      since += DT;
+      if (C.P.state === 'run' && since >= interval) { C.P.invuln = 0; knockPlayer(C.P, C.P.x, C.P.z, 'mid'); hits++; since = 0; }
+      stepGame(C, NOI, DT);
+    }
+    return { hits, dead: C.M.phase === 'dead', time: C.P.time };
+  }
+  const one = quiet(); go(one, CFG.volcano.eruptDelay + 3); knockPlayer(one.P, one.P.x, one.P.z, 'mid'); go(one, 60);
+  check('1 回被弾しても（序盤は）すぐ死なない', one.M.phase === 'playing', 'gap ' + magmaGap(one.M, one.P));
+  const burst = hitsRun(0, 120);
+  check('立て続けに被弾し続けるとマグマに追いつかれる', burst.dead, 'hits ' + burst.hits + ' time ' + burst.time);
+  window.__burst = burst;
+
+  // 接触：ジャンプ中でも関係なし
+  const J = quiet(); go(J, 6); stepGame(J, { ...NOI, jump: true }, DT); go(J, 0.1);
+  check('ジャンプ中（空中）に先端が届いてもゲームオーバー', (() => { const Y = quiet(); go(Y, 6); stepGame(Y, { ...NOI, jump: true }, DT); const air = !Y.P.grounded && Y.P.y > 0; Y.M.front = Y.P.dist + 1; const ev = stepGame(Y, NOI, DT); return air && ev.died && Y.M.phase === 'dead'; })());
+  check('接触でそのフレームの ev.died が true・状態が dead になる', (() => { const Y = quiet(); go(Y, 6); Y.M.front = Y.P.dist + 1; const ev = stepGame(Y, NOI, DT); return ev.died === true && Y.P.state === 'dead' && Y.M.phase === 'dead'; })());
+
+  // dead 中は止まる
+  const D = quiet(); go(D, 6); D.M.front = D.P.dist + 1; stepGame(D, NOI, DT);
+  spawnRock(D.RS, 'small', 5, D.P.z - 30, lcg(1)); D.RS.timer = 0;
+  const snap = { dist: D.P.dist, z: D.P.z, x: D.P.x, time: D.P.time, y: D.P.y };
+  let spawned = 0; for (let i = 0; i < 600; i++) { const ev = stepGame(D, { left: true, right: false, jump: i === 5 }, DT); spawned += ev.spawned.length; }
+  check('dead 中は前進しない（dist・z・time が動かない）', D.P.dist === snap.dist && D.P.z === snap.z && D.P.time === snap.time);
+  check('dead 中は操作を受け付けない（左入力・ジャンプでも x/y が動かない）', D.P.x === snap.x && D.P.y === snap.y && D.P.state === 'dead');
+  check('dead 中は噴石が新しく出ない（タイマーが 0 でも）', spawned === 0 && D.RS.rocks.length === 0, 'spawned ' + spawned);
+  check('dead 中の噴石の着弾で死亡状態は変わらない（噴石直撃では死なない・吹き飛ばない）', D.P.state === 'dead' && D.M.phase === 'dead');
+  check('死亡演出の時計：P.stateT が進み、M.deadT と一致', Math.abs(D.P.stateT - D.M.deadT) < 0.05 && D.M.deadT > 9, 'deadT ' + D.M.deadT);
+  check('死亡後、先端はプレイヤーを deathOvershoot だけ越えて止まる', Math.abs(D.M.front - (D.M.deathDist + MC.deathOvershoot)) < 1e-3, 'front ' + D.M.front + ' / ' + D.M.deathDist);
+
+  // 噴石直撃では死なない（Phase 4）
+  const K = quiet(); go(K, 6); spawnRock(K.RS, 'large', K.P.x, K.P.z, lcg(2), 0.05); go(K, 0.2);
+  check('噴石の直撃は吹き飛びのみ・phase は playing のまま', K.M.phase === 'playing' && K.P.hits === 1);
+
+  // リセット
+  const R = quiet(); go(R, 7, { ...NOI, right: true }); spawnRock(R.RS, 'mid', 3, -300, lcg(4)); R.M.front = R.P.dist + 1; stepGame(R, NOI, DT); go(R, 2);
+  const refP = R.P, refM = R.M, refRS = R.RS; resetGame(R);
+  const fresh = newGame();
+  check('リセットで全状態が新品と同じになる（P・M・RS）', JSON.stringify(R) === JSON.stringify(fresh), JSON.stringify(R.M));
+  check('リセットでオブジェクトの参照は変わらない（二重管理しない）', R.P === refP && R.M === refM && R.RS === refRS);
+  check('リセット後は playing・dist 0・噴石なし・マグマ未始動', R.M.phase === 'playing' && R.P.dist === 0 && R.P.time === 0 && R.P.state === 'run' && R.RS.rocks.length === 0 && !R.M.active && R.RS.nextId === 1);
+  const deathTime = G0 => { const Q = G0; Q.RS.timer = 1e9; Q.P.slow = 1e9; let tt = 0; while (Q.M.phase === 'playing' && tt < 200) { stepGame(Q, NOI, DT); tt += DT; } return tt; };
+  const d1 = deathTime(quiet()); resetGame(R); const d2 = deathTime(R); resetGame(R); const d3 = deathTime(R);
+  check('リセットを繰り返しても同じ条件で同じ時刻に追いつかれる（状態の持ち越しなし）', Math.abs(d1 - d2) < 1e-6 && Math.abs(d1 - d3) < 1e-6, d1 + ' / ' + d2 + ' / ' + d3);
+  resetGame(R); go(R, 3);
+  check('リセット後は普通に前進を再開する', R.P.dist > 40 && R.M.phase === 'playing');
 })();
 
 document.getElementById('sum').textContent = nNg === 0 ? `ALL PASS (${nOk})` : `FAIL ${nNg} / PASS ${nOk}`;

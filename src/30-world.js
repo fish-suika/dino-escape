@@ -98,3 +98,9 @@ function updateWorld(P, dt) {
   const fov = Math.min(C.fovMax, C.fov + (P.speed - CFG.run.baseSpeed) * C.fovSpeed);
   if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
 }
+
+// 再スタート用：装飾を初期配置へ、カメラを最初の位置へ
+function resetWorld() {
+  WORLD.decor.forEach(d => WORLD.place(d, true, 0));
+  WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
+}

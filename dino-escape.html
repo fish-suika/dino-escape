@@ -22,11 +22,29 @@
   #scream.on{animation:scream 1.2s ease-out forwards}
   @keyframes scream{0%{opacity:0;transform:scale(.4) rotate(-6deg)}10%{opacity:1;transform:scale(1.3) rotate(4deg)}20%{transform:scale(1) rotate(-3deg)}35%{transform:scale(1.08) rotate(2deg)}80%{opacity:1}100%{opacity:0;transform:scale(1.15) translateY(-20px)}}
   #mute{position:fixed;right:14px;top:18px;font-size:13px;opacity:.7;pointer-events:none;text-shadow:0 1px 6px #000}
+  #lavaGlow{position:fixed;left:0;right:0;bottom:0;height:42%;pointer-events:none;opacity:0;background:linear-gradient(to top,rgba(255,80,10,.85),rgba(255,60,10,.35) 45%,rgba(255,50,0,0))}
+  #heat{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 55%,rgba(255,60,0,0) 45%,rgba(255,50,0,.5) 100%)}
+  #hud{flex-direction:column;align-items:center;gap:8px}
+  #magma{display:flex;align-items:center;gap:8px;padding:3px 14px;border-radius:999px;background:rgba(20,8,6,.5);border:1px solid rgba(255,140,60,.35);font-size:14px;letter-spacing:.08em;text-shadow:0 1px 6px #000}
+  #magma .dot{width:11px;height:11px;border-radius:50%;background:rgba(255,255,255,.14);border:1px solid rgba(255,160,80,.4)}
+  #magma .dot.lit{background:#ff9a2a;border-color:#ffd080;box-shadow:0 0 8px #ff7a1a}
+  #magma.hot{border-color:#ff5030;color:#ffd0b0;animation:hot .5s ease-in-out infinite alternate}
+  #magma.hot .dot.lit{background:#ff3a1a;box-shadow:0 0 10px #ff2a0a}
+  @keyframes hot{from{box-shadow:0 0 0 rgba(255,60,20,0)}to{box-shadow:0 0 16px rgba(255,60,20,.8)}}
+  #gameover{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;pointer-events:none;opacity:0;transition:opacity .8s;background:radial-gradient(ellipse at center,rgba(40,6,0,.55),rgba(10,0,0,.8))}
+  #gameover.on{opacity:1}
+  #gameover .go{font-size:clamp(40px,10vw,150px);font-weight:900;letter-spacing:.08em;color:#ffd9a0;-webkit-text-stroke:3px #7a1500;text-shadow:0 0 28px #ff5a14,0 8px 0 #5a0d00}
+  #gameover .sub{font-size:clamp(18px,3vw,40px);letter-spacing:.1em;text-shadow:0 2px 10px #000}
+  #gameover .dist{font-size:clamp(20px,3.4vw,46px);font-weight:700;letter-spacing:.08em;font-variant-numeric:tabular-nums;text-shadow:0 2px 10px #000}
+  #gameover .again{margin-top:10px;font-size:clamp(16px,2.4vw,30px);letter-spacing:.14em;color:#ffcf8a;animation:blink 1.1s ease-in-out infinite alternate}
+  @keyframes blink{from{opacity:.45}to{opacity:1}}
 </style>
 </head>
 <body>
 <div id="view"></div>
-<div id="hud"><div id="dist">距離：0m</div></div>
+<div id="lavaGlow"></div><div id="heat"></div>
+<div id="hud"><div id="dist">距離：0m</div><div id="magma"><span>マグマ</span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="magmaGap">--m</span></div></div>
+<div id="gameover"><div class="go">GAME OVER</div><div class="sub">火山から逃げ切れなかった……</div><div class="dist" id="overDist">逃走距離：0m</div><div class="again">[R] もう一度逃げる</div></div>
 <div id="boom">ドゴォォォン！！！</div><div id="scream">ギャーー！！</div><div id="flash"></div><div id="mute">♪ ON (M)</div>
 <div id="hint">← → / A D 移動 ・ Space ジャンプ ・ M 音ON/OFF</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -59,7 +77,13 @@ const CFG = {
          bounce: 0.42, bounceMin: 2.5, friction: 2.2, knockMul: 0.15,                                                        // バウンドの反発 / 止まる最小の落下速度 / 地面での減速 / 吹き飛び中の前進倍率
          recoverSec: 0.7, recoverMul: 0.4, slowSec: 2.6, slowFactor: 0.55, slowRamp: 0.7,                                    // 起き上がりの秒と前進倍率 / 減速の続く秒と倍率 / 戻るまでにかける秒
          invulnSec: 1.8, screamSec: 1.2 },                                                                                   // 復帰後の無敵（点滅）秒 / 「ギャーー」表示秒
-  sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85 },                                                              // 全体音量 / 待機中・噴火中のゴゴゴ音量
+  magma: { startGap: 60, speed0: 14, accel: 0.06, speedMax: 26,                                                             // 噴火時の先端との距離(u) / 噴火直後の速さ / 加速(u/s²) / 上限（プレイヤーの基準速度 16〜34 と比べる）
+           deathOvershoot: 6, deathSec: 1.5, deathSink: 3.2, overlayDelay: 1.6,                                              // 死亡時に先端がプレイヤーを越えて止まる距離 / 沈む秒 / 沈む深さ / GAME OVER 表示までの秒
+           width: 560, length: 260, crestH: 3.8,                                                                              // 溶岩の幅（左右の外まで）/ 奥行き / 波頭の高さ
+           heatRange: 55, glowBase: 0.1, wobble: 3, shakeRange: 26, shakeAmp: 0.16, audibleRange: 140,                        // 熱ゆらぎ・赤みが出始める距離 / 噴火後の下端の照り返し最小値 / 熱ゆらぎ(px) / 揺れが出る距離・大きさ / 音が聞こえ始める距離
+           dangerGaps: [110, 75, 50, 28, 14],                                                                                 // HUD ゲージの点灯しきい値（この距離より近いと点が1つずつ点く）
+           sparkMax: 260, steamMax: 140, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
+  sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };
 // ===== 純ロジック（three.js 非依存。verify.html でテスト） =====
@@ -221,6 +245,69 @@ function stepRocks(S, P, dt, erupting, rng) {
   S.rocks = alive;
   return ev;
 }
+// ===== マグマと一回のゲーム進行（純ロジック。three.js 非依存） =====
+// 位置は「走行距離（dist）の座標」で持つ。M.front＝マグマ先端の位置、P.dist＝プレイヤーの位置。前方ほど大きい
+// 差（gap）= P.dist - M.front が 0 以下になったらゲームオーバー（ジャンプ中でも関係なし）
+function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+
+function newMagma() { return { phase: 'playing', active: false, front: -CFG.magma.startGap, speed: 0, t: 0, deadT: 0, deathDist: 0 }; }
+function newGame() { return { P: newPlayer(), M: newMagma(), RS: newRockSched() }; }
+
+// 噴火してから e 秒後のマグマの速さ
+function magmaSpeedAt(e) { const C = CFG.magma; return Math.min(C.speedMax, C.speed0 + C.accel * Math.max(0, e)); }
+function magmaGap(M, P) { return P.dist - M.front; }
+// 近さ 0〜1（range 以上離れていれば 0、接触で 1）
+function magmaProx(gap, range) { return clamp01(1 - gap / range); }
+// HUD のゲージ：点灯する点の数（0〜dangerGaps.length）。近いほど多い
+function magmaDanger(gap) { let n = 0; for (const g of CFG.magma.dangerGaps) if (gap < g) n++; return n; }
+
+// マグマを 1 フレーム進める。このフレームで追いつかれたら true
+function stepMagma(M, P, dt, erupting) {
+  const C = CFG.magma;
+  if (M.phase === 'dead') {   // 死亡後：先端はプレイヤーを少し越えるまで進んで止まる（溶岩面が恐竜に被さる）
+    M.deadT += dt;
+    const cap = M.deathDist + C.deathOvershoot;
+    M.speed = 0;
+    M.front += (cap - M.front) * (1 - Math.exp(-6 * dt));   // なめらかに越えて止まる（cap は超えない）
+    return false;
+  }
+  if (!M.active) {
+    M.front = P.dist - C.startGap;   // 噴火前は動かない（常に startGap だけ後ろで待機）
+    if (!erupting) return false;
+    M.active = true;
+  }
+  M.t += dt; M.speed = magmaSpeedAt(M.t); M.front += M.speed * dt;
+  if (P.dist - M.front <= 0) {
+    M.phase = 'dead'; M.deadT = 0; M.deathDist = P.dist; M.front = P.dist;
+    P.state = 'dead'; P.stateT = 0; P.vx = 0; P.vy = 0; P.kvx = 0; P.kvf = 0; P.invuln = 0; P.slow = 0; P.tumble = 0;
+    if (P.y < 0.05) { P.y = 0; P.grounded = true; }
+    return true;
+  }
+  return false;
+}
+
+// ゲーム全体を 1 フレーム進める。G = { P, M, RS }。playing の間だけ前進・操作・噴石の新規生成が動く。
+// dead の間はプレイヤーは動かず（P.stateT は死亡演出の経過秒）、噴石は新しく出ないが、すでに落下中のものは着弾する。
+function stepGame(G, inp, dt, rng) {
+  const { P, M, RS } = G, ev = { spawned: [], landed: [], died: false };
+  if (M.phase === 'playing') {
+    stepPlayer(P, inp, dt);
+    const erupting = volcanoState(P.time).state === 'erupting';
+    const r = stepRocks(RS, P, dt, erupting, rng); ev.spawned = r.spawned; ev.landed = r.landed;
+    ev.died = stepMagma(M, P, dt, erupting);
+  } else {
+    P.stateT += dt;
+    const r = stepRocks(RS, P, dt, false, rng); ev.landed = r.landed;
+    stepMagma(M, P, dt, false);
+  }
+  return ev;
+}
+
+// 全状態を初期化（オブジェクトの参照は変えず、中身だけ入れ替える）
+function resetGame(G) {
+  Object.assign(G.P, newPlayer()); Object.assign(G.M, newMagma()); Object.assign(G.RS, newRockSched());
+  return G;
+}
 // ===== 3D ステージ：空・フォグ・地面・装飾・カメラ =====
 const WORLD = {};
 
@@ -320,6 +407,12 @@ function updateWorld(P, dt) {
   cam.lookAt(WORLD.lookX, C.lookY, P.z - C.lookAhead);
   const fov = Math.min(C.fovMax, C.fov + (P.speed - CFG.run.baseSpeed) * C.fovSpeed);
   if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+}
+
+// 再スタート用：装飾を初期配置へ、カメラを最初の位置へ
+function resetWorld() {
+  WORLD.decor.forEach(d => WORLD.place(d, true, 0));
+  WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
 }
 // ===== 火山：モデル・煙・火・火山灰・空の変化（three.js） =====
 const VOL = {};
@@ -508,6 +601,127 @@ function updateVolcano(P, dt, fx) {
     if (VOL.hemi) VOL.hemi.color.copy(VOL.hemiA).lerp(VOL.hemiB, fx.k);
   }
 }
+
+// 再スタート用：噴火前の状態へ（煙・火の粒を消し、空と霧を元の色に戻す）
+function resetVolcano() {
+  VOL.t = 0; VOL.skyK = -1;
+  [VOL.smoke, VOL.fire].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.budget = 0; });
+}
+// ===== マグマの見た目：溶岩の壁・波頭・火の粉・蒸気・照り返し・熱ゆらぎ・HUD（three.js / DOM） =====
+// 状態（先端の位置）は 27-magma-logic.js の M が持つ。先端は z = -M.front で、そこから後方（+z）へ溶岩面が広がる
+const MAG = { t: 0, hudGap: -1, hudN: -1, overlayOn: false };
+
+// 溶岩のテクスチャ：橙の地に黒い冷えた殻のまだらと明るいひび。端でつながるように折り返して描く
+function makeLavaTexture() {
+  const S = 256, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e8620f'; g.fillRect(0, 0, S, S);
+  const wrap = (x, y, r, fill) => { g.fillStyle = fill; for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) { g.beginPath(); g.arc(x + ox, y + oy, r, 0, 7); g.fill(); } };
+  for (let i = 0; i < 70; i++) wrap(Math.random() * S, Math.random() * S, 6 + Math.random() * 20, `rgba(255,${170 + Math.floor(Math.random() * 60)},50,${0.25 + Math.random() * 0.3})`);   // 明るい高温部
+  for (let i = 0; i < 46; i++) wrap(Math.random() * S, Math.random() * S, 8 + Math.random() * 22, `rgba(${40 + Math.floor(Math.random() * 30)},12,6,${0.55 + Math.random() * 0.3})`);   // 冷えた黒い殻
+  for (let i = 0; i < 90; i++) wrap(Math.random() * S, Math.random() * S, 1 + Math.random() * 3, 'rgba(255,225,110,0.9)');   // ひびの白熱
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+
+// 先端からの距離 lz と高さ（波頭の高さ 1 に対する比）。手前が切り立った壁、波頭、すぐ低い溶岩面へ
+const MAG_PROFILE = [[0, 0.03], [0.4, 0.3], [1.0, 0.68], [1.8, 1.0], [2.6, 0.92], [3.6, 0.7], [5, 0.5], [7, 0.34], [10, 0.25], [14, 0.2], [22, 0.19], [40, 0.19], [80, 0.19], [140, 0.19], [1e9, 0.19]];
+
+function buildMagma() {
+  const C = CFG.magma, scene = WORLD.scene, N = 140;
+  const rows = MAG_PROFILE.map(p => [Math.min(p[0], C.length), p[1] * C.crestH]).filter((p, i, a) => i === 0 || p[0] > a[i - 1][0]);
+  const R = rows.length, pos = new Float32Array((N + 1) * R * 3), idx = [];
+  for (let j = 0; j < R; j++) for (let i = 0; i <= N; i++) { const k = (j * (N + 1) + i) * 3; pos[k] = (i / N - 0.5) * C.width; pos[k + 1] = rows[j][1]; pos[k + 2] = rows[j][0]; }
+  for (let j = 0; j < R - 1; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i, b = a + 1, c = a + N + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
+  MAG.uni = { time: { value: 0 }, map: { value: makeLavaTexture() } };
+  const mat = new THREE.ShaderMaterial({
+    uniforms: MAG.uni, side: THREE.DoubleSide,
+    vertexShader: 'uniform float time;varying vec2 vP;' +
+      'void main(){vec3 p=position;float lz=p.z;float w=smoothstep(0.,7.,lz);float crest=exp(-pow(lz-1.8,2.)/3.5);' +
+      'p.y+=(sin(p.x*0.33+time*1.7+lz*0.45)*0.22+sin(p.x*0.85-time*2.3)*0.1)*w+crest*sin(p.x*0.5+time*2.6)*0.55;' +
+      'p.z+=(0.5+0.5*sin(p.x*0.7+time*1.3))*0.9*(1.-smoothstep(0.,3.,lz));p.y=max(p.y,0.1);' +
+      'vP=vec2(position.x,position.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}',
+    fragmentShader: 'uniform sampler2D map;uniform float time;varying vec2 vP;' +
+      'void main(){vec2 a=vec2(vP.x*0.05+time*0.015,vP.y*0.05-time*0.05),b=vec2(vP.x*0.11-time*0.02,vP.y*0.11-time*0.09);' +
+      'vec3 c1=texture2D(map,a).rgb,c2=texture2D(map,b).rgb;vec3 col=c1*c2*1.9+c1*0.4;float lz=vP.y;' +
+      'col+=vec3(1.,0.55,0.12)*0.6*exp(-pow(lz-1.6,2.)/5.);col+=vec3(1.,0.8,0.35)*0.5*exp(-lz*0.9);' +
+      'col*=0.92+0.08*sin(time*3.+vP.x*0.2);gl_FragColor=vec4(col,1.);}'
+  });
+  MAG.mesh = new THREE.Mesh(geo, mat); MAG.mesh.frustumCulled = false; scene.add(MAG.mesh);
+
+  const tex = makeSoftTexture();
+  MAG.sparks = makeParticles(C.sparkMax, true, tex); MAG.steam = makeParticles(C.steamMax, false, tex);
+  MAG.sparks.cursor = 0; MAG.steam.cursor = 0; MAG.sparks.acc = 0; MAG.steam.acc = 0;
+  scene.add(MAG.steam.pts, MAG.sparks.pts);
+  MAG.light = new THREE.PointLight(0xff6a20, 0, 55); scene.add(MAG.light);   // 恐竜の背中を橙に照らす照り返し
+
+  MAG.$glow = document.getElementById('lavaGlow'); MAG.$heat = document.getElementById('heat'); MAG.$view = document.getElementById('view');
+  MAG.$gauge = document.getElementById('magma'); MAG.$dots = [...document.querySelectorAll('#magma .dot')]; MAG.$gap = document.getElementById('magmaGap');
+  MAG.$over = document.getElementById('gameover'); MAG.$overDist = document.getElementById('overDist');
+  resetMagmaView();
+}
+
+// 再スタート用：見た目の状態を初期化（オブジェクトは作り直さない）
+function resetMagmaView() {
+  MAG.t = 0; MAG.hudGap = -1; MAG.hudN = -1; MAG.overlayOn = false;
+  [MAG.sparks, MAG.steam].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.cursor = 0; S.acc = 0; pflush(S); });
+  MAG.$over.classList.remove('on'); MAG.$glow.style.opacity = 0; MAG.$heat.style.opacity = 0; MAG.$view.style.transform = '';
+  MAG.mesh.position.z = 1e5; MAG.light.intensity = 0;
+}
+
+function magEmit(S, x, y, z, vx, vy, vz, life, size, alpha) {
+  const i = S.cursor = (S.cursor + 1) % S.max;
+  S.age[i] = 0; S.life[i] = life; S.s0[i] = size; S.a0[i] = alpha;
+  S.pos[i * 3] = x; S.pos[i * 3 + 1] = y; S.pos[i * 3 + 2] = z; S.vel[i * 3] = vx; S.vel[i * 3 + 1] = vy; S.vel[i * 3 + 2] = vz;
+}
+
+function stepMagmaFx(S, dt, spark) {
+  for (let i = 0; i < S.max; i++) {
+    if (S.age[i] >= S.life[i]) { S.alpha[i] = 0; continue; }
+    S.age[i] += dt; const f = Math.min(1, S.age[i] / S.life[i]), j = i * 3;
+    if (spark) S.vel[j + 1] -= 16 * dt;
+    S.pos[j] += S.vel[j] * dt; S.pos[j + 1] += S.vel[j + 1] * dt; S.pos[j + 2] += S.vel[j + 2] * dt;
+    if (spark) {
+      S.size[i] = S.s0[i] * (1 - 0.6 * f); S.alpha[i] = S.a0[i] * (1 - f) * (1 - f);
+      S.col[j] = 1; S.col[j + 1] = 0.75 - 0.5 * f; S.col[j + 2] = 0.25 - 0.2 * f;
+    } else {   // 蒸気：もくもく広がる、橙に照らされた灰白色
+      S.size[i] = S.s0[i] * (0.6 + f * 1.8); S.alpha[i] = S.a0[i] * Math.min(1, f * 6) * (1 - f);
+      S.col[j] = 0.6 - 0.15 * f; S.col[j + 1] = 0.42 - 0.07 * f; S.col[j + 2] = 0.33 - 0.05 * f;
+    }
+  }
+}
+
+function updateMagma(P, M, dt) {
+  const C = CFG.magma, gap = magmaGap(M, P), dead = M.phase === 'dead';
+  MAG.t += dt; MAG.uni.time.value = MAG.t;
+  const zf = -M.front;
+  MAG.mesh.position.set(0, 0, zf);
+  const prox = dead ? 1 : magmaProx(gap, C.heatRange);
+
+  // 火の粉と蒸気：先端の波頭から、画面に見える範囲（プレイヤーの左右）に出す。遠い間は出さない
+  if (gap < 160 || dead) {
+    MAG.sparks.acc += 45 * dt; MAG.steam.acc += 18 * dt;
+    while (MAG.sparks.acc >= 1) { MAG.sparks.acc -= 1; magEmit(MAG.sparks, P.x * 0.9 + rnd(-26, 26), rnd(2, C.crestH), zf + rnd(0.5, 3), rnd(-3, 3), rnd(4, 14), rnd(-7, 3), rnd(0.7, 1.6), rnd(1.2, 2.8), 1); }
+    while (MAG.steam.acc >= 1) { MAG.steam.acc -= 1; magEmit(MAG.steam, P.x * 0.9 + rnd(-26, 26), rnd(1, 3), zf + rnd(0, 3), rnd(-1, 1), rnd(2, 5), rnd(-3, 1), rnd(1.6, 2.8), rnd(4, 8), 0.35); }
+  }
+  stepMagmaFx(MAG.sparks, dt, true); stepMagmaFx(MAG.steam, dt, false); pflush(MAG.sparks); pflush(MAG.steam);
+  MAG.light.position.set(P.x, 3, zf + 4); MAG.light.intensity = C.lightMax * prox * prox * (0.9 + 0.1 * Math.sin(MAG.t * 9));
+
+  // 画面の赤み：下端の照り返し（噴火後は常に少し）・全体の赤い縁・熱ゆらぎ
+  const glow = Math.min(1, (M.active ? C.glowBase : 0) + 0.95 * prox), pulse = 0.85 + 0.15 * Math.sin(MAG.t * 6);
+  MAG.$glow.style.opacity = (glow * pulse).toFixed(3);
+  MAG.$heat.style.opacity = (prox * prox * 0.9).toFixed(3);
+  const wb = C.wobble * prox * prox;
+  MAG.$view.style.transform = wb > 0.05 ? `translate(${(Math.sin(MAG.t * 23) * wb).toFixed(2)}px,${(Math.cos(MAG.t * 31) * wb * 0.7).toFixed(2)}px) scale(${(1 + wb * 0.003).toFixed(4)})` : '';
+
+  // HUD：距離と点灯ゲージ
+  const gm = Math.max(0, Math.round(gap)), n = dead ? 5 : magmaDanger(gap);
+  if (gm !== MAG.hudGap) { MAG.hudGap = gm; MAG.$gap.textContent = gm + 'm'; }
+  if (n !== MAG.hudN) { MAG.hudN = n; MAG.$dots.forEach((d, i) => d.classList.toggle('lit', i < n)); MAG.$gauge.classList.toggle('hot', n >= 4); }
+  if (dead && !MAG.overlayOn && M.deadT >= C.overlayDelay) {
+    MAG.overlayOn = true; MAG.$overDist.textContent = '逃走距離：' + Math.floor(M.deathDist) + 'm'; MAG.$over.classList.add('on');
+  }
+}
 // ===== 噴石の見た目：落下する燃える岩・危険マーカー・影・爆発・クレーター・画面揺れ（three.js） =====
 // 状態（いつ・どこに落ちるか）は 26-rock-logic.js の S.rocks が持つ。ここは毎フレームそれを映すだけ。
 const ROCKS = { shake: 0, frame: 0 };
@@ -652,6 +866,15 @@ function updateRocksFx(dt) {
   }
   ROCKS.shake *= Math.exp(-R.shakeDecay * dt); if (ROCKS.shake < 0.004) ROCKS.shake = 0;
 }
+
+// 再スタート用：飛行中の噴石・火の粉・土煙・衝撃波・クレーター跡・揺れをすべて消す
+function resetRocks() {
+  for (const sl of ROCKS.slots) if (sl.id) rockRelease(sl);
+  ROCKS.byId.clear(); ROCKS.shake = 0; ROCKS.frame = 0;
+  [ROCKS.sparks, ROCKS.dust].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.cursor = 0; pflush(S); });
+  ROCKS.rings.forEach(g => { g.t = 99; g.mesh.visible = false; });
+  ROCKS.craters.forEach(c => { c.t = 99; c.dark.visible = c.glow.visible = false; });
+}
 // ===== 恐竜（基本 Geometry だけのコミカルな1種類）。頭は -z 向き =====
 function buildDino() {
   const D = CFG.dino;
@@ -711,6 +934,7 @@ function updateDino(d, P, dt) {
   const sw = Math.sin(d.phase), a = d.air, g = 1 - a;
   d.group.position.set(P.x, 0, P.z);
   d.group.visible = !(P.invuln > 0 && Math.floor(P.time * 14) % 2 === 0);   // 復帰後の無敵中は点滅
+  if (P.state === 'dead') { updateDinoDead(d, P); return; }
   if (P.state !== 'run') { updateDinoHit(d, P); return; }
   d.root.position.z = 0; d.root.rotation.x = 0; d.body.scale.y = 1;
   d.root.position.y = P.y;
@@ -748,6 +972,20 @@ function updateDinoHit(d, P) {
     d.tail1.rotation.y = Math.sin(t * 8) * 0.3; d.tail2.rotation.y = Math.sin(t * 8 - 1) * 0.4; d.tail1.rotation.x = d.tail2.rotation.x = 0;
     d.head.rotation.x = 0.35 * (1 - e);
   }
+}
+
+// マグマに飲まれる：一瞬もがいて（手足・尻尾をばたつかせ、のけぞり）、溶岩の中へ沈む。P.stateT = 死亡からの秒
+function updateDinoDead(d, P) {
+  const C = CFG.magma, t = P.stateT, f = Math.min(1, t / C.deathSec), e = f * f * (3 - 2 * f), fl = Math.max(0, 1 - t / (C.deathSec * 0.85));
+  d.air += (1 - d.air) * 0.3;
+  d.group.visible = true;
+  d.root.position.set(0, P.y * (1 - Math.min(1, t * 5)) - C.deathSink * e, 0);
+  d.root.rotation.set(-0.75 * e + Math.sin(t * 17) * 0.08 * fl, 0, Math.sin(t * 13) * 0.25 * fl);
+  d.body.position.y = Math.abs(Math.sin(t * 15)) * 0.25 * fl; d.body.rotation.x = 0; d.body.scale.y = 1;
+  d.legs[0].rotation.x = Math.sin(t * 24) * 1.1 * fl; d.legs[1].rotation.x = Math.sin(t * 24 + 2.4) * 1.1 * fl;
+  d.tail1.rotation.y = Math.sin(t * 16) * 0.5 * fl; d.tail2.rotation.y = Math.sin(t * 16 - 1) * 0.6 * fl; d.tail1.rotation.x = d.tail2.rotation.x = 0;
+  d.head.rotation.x = -0.5 * (1 - e * 0.5);
+  d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - e);
 }
 // ===== キー入力（PC のみ） =====
 const KEYS = { left: false, right: false, jumpQ: false };
@@ -790,6 +1028,16 @@ function sndStart() {
   SND.hissG = c.createGain(); SND.hissG.gain.value = 0; SND.hissG.connect(SND.master);
   const h = sndLoop(SND.white), bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 500; bp.Q.value = 0.6;
   h.connect(bp); bp.connect(SND.hissG); h.start();
+  // マグマ：近づくほど大きくなる低い唸り（ゴゴゴゴ）と、ジュワジュワ（高域ノイズ）
+  SND.magmaG = c.createGain(); SND.magmaG.gain.value = 0; SND.magmaG.connect(SND.master);
+  const mn = sndLoop(SND.brown); SND.magmaLP = c.createBiquadFilter(); SND.magmaLP.type = 'lowpass'; SND.magmaLP.frequency.value = 90;
+  const mmod = c.createGain(); mmod.gain.value = 0.7; mn.connect(SND.magmaLP); SND.magmaLP.connect(mmod); mmod.connect(SND.magmaG); mn.start();   // 揺れは別段のゲインに掛ける（無音時に漏れないように）
+  const mo = c.createOscillator(); mo.type = 'sine'; mo.frequency.value = 29; const mog = c.createGain(); mog.gain.value = 0.6; mo.connect(mog); mog.connect(SND.magmaG); mo.start();
+  const mlfo = c.createOscillator(); mlfo.frequency.value = 2.1; const mlg = c.createGain(); mlg.gain.value = 0.3; mlfo.connect(mlg); mlg.connect(mmod.gain); mlfo.start();
+  SND.sizzleG = c.createGain(); SND.sizzleG.gain.value = 0; SND.sizzleG.connect(SND.master);
+  const szmod = c.createGain(); szmod.gain.value = 0.65; const sz = sndLoop(SND.white); SND.sizzleBP = c.createBiquadFilter(); SND.sizzleBP.type = 'bandpass'; SND.sizzleBP.frequency.value = 2600; SND.sizzleBP.Q.value = 0.8;
+  const szlfo = c.createOscillator(); szlfo.frequency.value = 9; const szg = c.createGain(); szg.gain.value = 0.35; szlfo.connect(szg); szg.connect(szmod.gain); szlfo.start();   // ジュワジュワと揺らす
+  sz.connect(SND.sizzleBP); SND.sizzleBP.connect(szmod); szmod.connect(SND.sizzleG); sz.start();
 }
 
 // 大噴火の爆発音：ノイズ（高→低に絞る）＋低音スイープ
@@ -812,6 +1060,44 @@ function sndUpdate(fx) {
   const S = CFG.sound, now = SND.ctx.currentTime;
   SND.rumbleG.gain.setTargetAtTime(S.rumbleIdle + (S.rumbleErupt - S.rumbleIdle) * fx.k, now, 0.3);
   SND.hissG.gain.setTargetAtTime(0.18 * fx.k, now, 0.4);
+}
+
+
+// マグマ接近の持続音。prox = 近さ 0〜1（遠いと 0）
+function sndMagmaUpdate(prox) {
+  if (!SND.ctx || !SND.magmaG) return;
+  const S = CFG.sound, now = SND.ctx.currentTime, p = Math.pow(prox, 1.3);
+  SND.magmaG.gain.setTargetAtTime(S.magmaRumble * p, now, 0.2);
+  SND.magmaLP.frequency.setTargetAtTime(70 + 330 * p, now, 0.2);   // 近いほど低音に張りが出る
+  SND.sizzleG.gain.setTargetAtTime(S.magmaSizzle * p, now, 0.2);
+  SND.sizzleBP.frequency.setTargetAtTime(1800 + 1800 * p, now, 0.3);
+}
+
+// マグマに飲まれた音「ジュワッ」：高域ノイズが一気に沈み、ボコボコと低音
+function sndMagmaDeath() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.04); g.gain.exponentialRampToValueAtTime(0.001, t + 1.6); g.connect(SND.master);
+  const s = c.createBufferSource(); s.buffer = SND.white; const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.1;
+  f.frequency.setValueAtTime(5200, t); f.frequency.exponentialRampToValueAtTime(500, t + 1.4);
+  s.connect(f); f.connect(g); s.start(t); s.stop(t + 1.7);
+  const o = c.createOscillator(), og = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(90, t); o.frequency.exponentialRampToValueAtTime(30, t + 0.9);
+  og.gain.setValueAtTime(0.9, t); og.gain.exponentialRampToValueAtTime(0.001, t + 1.1); o.connect(og); og.connect(SND.master); o.start(t); o.stop(t + 1.2);
+  for (let i = 0; i < 4; i++) {   // ボコッ、ボコッ
+    const b = c.createOscillator(), bg = c.createGain(), tb = t + 0.25 + i * 0.17 + Math.random() * 0.05; b.type = 'sine';
+    b.frequency.setValueAtTime(160 + Math.random() * 60, tb); b.frequency.exponentialRampToValueAtTime(60, tb + 0.12);
+    bg.gain.setValueAtTime(0.0001, tb); bg.gain.exponentialRampToValueAtTime(0.35, tb + 0.015); bg.gain.exponentialRampToValueAtTime(0.001, tb + 0.14);
+    b.connect(bg); bg.connect(SND.master); b.start(tb); b.stop(tb + 0.16);
+  }
+}
+
+// 恐竜の短い悲鳴「キュィィ……」：高い声が急に下がって消える
+function sndDinoDie() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.03); g.gain.exponentialRampToValueAtTime(0.001, t + 0.75); g.connect(SND.master);
+  const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.setValueAtTime(2000, t); f.frequency.exponentialRampToValueAtTime(500, t + 0.7); f.connect(g);
+  const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(900, t); o.frequency.exponentialRampToValueAtTime(180, t + 0.7);
+  const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 22; lg.gain.value = 40; l.connect(lg); lg.connect(o.frequency);
+  o.connect(f); o.start(t); l.start(t); o.stop(t + 0.8); l.stop(t + 0.8);
 }
 
 // 噴石の落下音「ヒュゥゥゥ」：高い音から低い音へ。大きい石ほど低く重い。dur=着弾までの秒
@@ -863,47 +1149,78 @@ function bindSound() {
 // ===== 起動・メインループ =====
 (function () {
   if (typeof THREE === 'undefined') { document.getElementById('hint').textContent = 'three.js を読み込めませんでした（ネット接続を確認してください）'; return; }
-  buildWorld(); buildVolcano(); buildRocks();
+  buildWorld(); buildVolcano(); buildRocks(); buildMagma();
   const $boom = document.getElementById('boom'), $flash = document.getElementById('flash'), $scream = document.getElementById('scream');
   let erupted = false, fx = volcanoState(0);
   const dino = buildDino(); WORLD.scene.add(dino.group);
-  const P = newPlayer(), RS = newRockSched();
+  const G = newGame(), P = G.P, M = G.M, RS = G.RS;   // 純ロジックの状態（リセット時も同じオブジェクトの中身を入れ替える）
   const $dist = document.getElementById('dist');
   let shown = -1;
 
   function showScream() { $scream.classList.remove('on'); void $scream.offsetWidth; $scream.classList.add('on'); }
 
+  // マグマに飲まれた瞬間：音・揺れ・溶岩のしぶき
+  function onDeath() {
+    sndMagmaDeath(); sndDinoDie();
+    ROCKS.shake = Math.max(ROCKS.shake, 0.55);
+    for (let i = 0; i < 46; i++) {
+      const a = rnd(0, 6.283), sp = rnd(5, 16);
+      fxEmit(ROCKS.sparks, P.x + Math.cos(a) * 0.8, 0.6, P.z + Math.sin(a) * 0.8, Math.cos(a) * sp * 0.6, rnd(8, 20), Math.sin(a) * sp * 0.6, rnd(0.7, 1.4), rnd(1.5, 3.2), 1, 0);
+    }
+    $scream.classList.remove('on');
+  }
+
+  // R：全状態を初期化して最初から（噴火・噴石・マグマ・恐竜・揺れ・フラッシュ・音・粒子）。オブジェクトは作り直さない
+  function restart() {
+    resetGame(G); erupted = false; fx = volcanoState(0); shown = -1;
+    KEYS.left = KEYS.right = KEYS.jumpQ = false;
+    resetRocks(); resetVolcano(); resetWorld(); resetMagmaView();
+    dino.phase = 0; dino.air = 0; dino.group.visible = true;
+    [$boom, $scream].forEach(el => el.classList.remove('on')); $flash.style.opacity = 0;
+    sndMagmaUpdate(0);
+  }
+
   function update(dt) {
-    // 吹き飛び・起き上がり中は stepPlayer が入力を無視する
-    stepPlayer(P, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
+    // 吹き飛び・起き上がり中は stepPlayer が入力を無視する。dead の間は stepGame が前進・操作・噴石の新規生成を止める
+    const ev = stepGame(G, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
     KEYS.jumpQ = false;
     fx = volcanoState(P.time);
-    const ev = stepRocks(RS, P, dt, fx.state === 'erupting');   // 噴火後だけ噴石が降る。着弾で直撃判定
     syncRocks(RS, dt);
     ev.landed.forEach(l => { rockImpact(l.rock, l.hit); if (l.hit) { showScream(); sndScream(); } });
+    if (ev.died) onDeath();
     updateRocksFx(dt);
     updateDino(dino, P, dt);
     updateWorld(P, dt);
     if (fx.state === 'erupting' && !erupted) { erupted = true; $boom.classList.add('on'); sndBoom(); }
     updateVolcano(P, dt, fx);
+    updateMagma(P, M, dt);
+    const gap = magmaGap(M, P), alive = M.phase === 'playing';
     sndUpdate(fx);
+    sndMagmaUpdate(alive ? magmaProx(gap, CFG.magma.audibleRange) : Math.max(0, 0.6 - M.deadT * 0.3));
     $flash.style.opacity = fx.flash;
+    const T = VOL.t;   // 揺れの位相（P.time は死亡で止まるので別の時計を使う）
     if (fx.shake > 0) {   // 控えめな画面揺れ（カメラ位置だけ。向きは変えない）
-      WORLD.camera.position.x += Math.sin(P.time * 61) * fx.shake;
-      WORLD.camera.position.y += Math.cos(P.time * 47) * fx.shake * 0.8;
+      WORLD.camera.position.x += Math.sin(T * 61) * fx.shake;
+      WORLD.camera.position.y += Math.cos(T * 47) * fx.shake * 0.8;
     }
     if (ROCKS.shake > 0) {   // 噴石着弾の揺れ（位置のみ。大型は強め・中型は弱め）
-      WORLD.camera.position.x += Math.sin(P.time * 83) * ROCKS.shake;
-      WORLD.camera.position.y += Math.cos(P.time * 71) * ROCKS.shake * 0.8;
+      WORLD.camera.position.x += Math.sin(T * 83) * ROCKS.shake;
+      WORLD.camera.position.y += Math.cos(T * 71) * ROCKS.shake * 0.8;
+    }
+    if (alive && M.active) {   // マグマが近い：小刻みな地鳴りの揺れ（控えめ）
+      const k = magmaProx(gap, CFG.magma.shakeRange), s = CFG.magma.shakeAmp * k * k;
+      if (s > 0) { WORLD.camera.position.x += Math.sin(T * 97) * s; WORLD.camera.position.y += Math.cos(T * 89) * s * 0.8; }
     }
     const m = Math.floor(P.dist);
     if (m !== shown) { shown = m; $dist.textContent = '距離：' + m + 'm'; }
   }
 
   bindInput(); bindSound();
+  addEventListener('keydown', e => { if (e.code === 'KeyR' && !e.repeat && M.phase === 'dead') restart(); });
   // 確認用：状態の読み取りと、1 フレーム進める口。dropRock(size, x, z, warn?) = 指定位置へ今すぐ噴石を落とす（warn は着弾までの秒の上書き）
-  window.GAME = { P, KEYS, CFG, dino, WORLD, VOL, SND, RS, ROCKS, get fx() { return fx; },
+  window.GAME = { G, P, M, KEYS, CFG, dino, WORLD, VOL, SND, RS, ROCKS, MAG, get fx() { return fx; },
     step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); },
+    restart,
     dropRock: (size, x, z, warn) => spawnRock(RS, size, x, z, null, warn),
     dropRockOnDino: (size, warn) => { const w = warn || CFG.rock.sizes[size].warn; return spawnRock(RS, size, P.x, P.z - P.speed * w, null, warn); } };
   let last = performance.now();

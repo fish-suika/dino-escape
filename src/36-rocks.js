@@ -142,3 +142,12 @@ function updateRocksFx(dt) {
   }
   ROCKS.shake *= Math.exp(-R.shakeDecay * dt); if (ROCKS.shake < 0.004) ROCKS.shake = 0;
 }
+
+// 再スタート用：飛行中の噴石・火の粉・土煙・衝撃波・クレーター跡・揺れをすべて消す
+function resetRocks() {
+  for (const sl of ROCKS.slots) if (sl.id) rockRelease(sl);
+  ROCKS.byId.clear(); ROCKS.shake = 0; ROCKS.frame = 0;
+  [ROCKS.sparks, ROCKS.dust].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.cursor = 0; pflush(S); });
+  ROCKS.rings.forEach(g => { g.t = 99; g.mesh.visible = false; });
+  ROCKS.craters.forEach(c => { c.t = 99; c.dark.visible = c.glow.visible = false; });
+}
