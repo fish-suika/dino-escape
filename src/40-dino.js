@@ -245,7 +245,7 @@ function buildDino() {
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; shadow.scale.set(0.9, 1.4, 1);
 
   const group = new THREE.Group(); group.add(root); group.add(shadow);
-  const d = { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, lids, jawPivot, sweat, tail, phase: 0, air: 0, slide: 0, fear: 0, panic: 0, squash: 1, clock: 0, idle: false, clr: null };
+  const d = { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, lids, jawPivot, sweat, tail, phase: 0, slide: 0, lm: 0, fear: 0, panic: 0, clock: 0, idle: false, clr: null };
   dinoTailUpdate(d);
   d.tris = dnTris(group) - 20;   // 影の円（20 角形）を除いた三角形数
   return d;
@@ -300,9 +300,10 @@ function updateDino(d, P, dt) { updateDinoPose(d, P, dt); dinoTailUpdate(d); }
 function updateDinoPose(d, P, dt) {
   const D = CFG.dino, k = fxInt(), fear = d.fear || 0, panic = d.panic || 0;
   d.phase += P.speed * dt * D.runFreq * (1 + 0.45 * panic * k);   // マグマが近いと脚の回転が速い（必死な走り）
-  d.air += ((P.grounded ? 0 : 1) - d.air) * (1 - Math.exp(-14 * dt));   // 空中ポーズへのなめらかな切り替え
   d.slide += ((P.state === 'run' && P.sliding && !d.idle ? 1 : 0) - d.slide) * (1 - Math.exp(-18 * dt));   // くぐる（スライド）ポーズへのなめらかな切り替え
-  const sw = Math.sin(d.phase), a = d.air, g = 1 - a;
+  const sw = Math.sin(d.phase), g = 1;
+  d.legs.forEach(l => { l.rotation.z = 0; });
+  if (P.state !== 'run' || d.idle) d.lm = 0;
   d.group.position.set(P.x, 0, P.z);
   d.group.visible = !(P.invuln > 0 && Math.floor(P.time * 14) % 2 === 0);   // 復帰後の無敵中は点滅
   d.body.scale.set(1, 1, 1); d.head.position.y = 2.2; d.torso.scale.y = 0.8; d.root.rotation.z = 0;
@@ -312,30 +313,31 @@ function updateDinoPose(d, P, dt) {
   if (P.state === 'dead') { updateDinoDead(d, P); return; }
   if (P.state !== 'run') { updateDinoHit(d, P); return; }
   d.root.position.z = 0; d.root.rotation.x = 0;
-  const sq = d.squash == null ? 1 : d.squash;   // 離陸前の溜め・着地のつぶれ（縦に縮めて横に広げる）
-  d.body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
-  d.root.position.y = P.y;
+  d.root.position.y = 0;
   const H = CFG.hit, dz = P.invuln > H.invulnSec - 0.6 ? (P.invuln - (H.invulnSec - 0.6)) / 0.6 : 0;   // 起き上がった直後：目が回ってよろめく
-  const lean = Math.max(-D.leanMax, Math.min(D.leanMax, P.vx * D.lean));   // レーン移動の間だけ横へ傾く
-  d.root.rotation.z = -lean + Math.sin(P.time * 15) * 0.12 * dz;
-  d.root.rotation.y = -lean * 0.7;
+  d.lm = laneLeanFollow(d.lm, laneLean(P), dt);   // レーン移動の専用ポーズの強さ（-1〜1。移動方向が符号）。連続した移動でもなめらかにつながる
+  const LP = laneMovePose(d.lm);
+  d.root.rotation.z = LP.roll + Math.sin(P.time * 15) * 0.12 * dz;   // 移動方向へ体を傾ける
+  d.root.rotation.y = LP.yaw;
   const st = P.stumbleT > 0 ? Math.sin(P.stumbleT / CFG.obstacle.stumble.tiltSec * Math.PI) : 0;   // クレーターでつまずく：前のめりにガクッ
-  d.body.position.y = g * Math.abs(sw) * D.bob - st * 0.18;
-  d.body.rotation.x = g * Math.sin(d.phase * 2) * 0.04 + a * Math.max(-0.5, Math.min(0.5, P.vy * 0.03)) - st * 0.45;   // 上昇で鼻先が上、下降で下
+  d.body.position.y = g * Math.abs(sw) * D.bob - st * 0.18 - LP.dip;
+  d.body.rotation.x = g * Math.sin(d.phase * 2) * 0.04 - st * 0.45;
   const lg = 1 + 0.25 * panic * k;   // 必死なときは脚の振れも大きい
-  d.legs[0].rotation.x = g * sw * D.legSwing * lg + a * D.tuck * 0.9;
-  d.legs[1].rotation.x = g * -sw * D.legSwing * lg + a * D.tuck * 0.5;
-  d.tail1.rotation.y = g * Math.sin(d.phase) * D.tailSwing;
-  d.tail2.rotation.y = g * Math.sin(d.phase - 1.0) * D.tailSwing * 1.2;
-  d.tail1.rotation.x = -a * 0.35 + g * Math.sin(d.phase * 2) * 0.05 - fear * 0.32 * k + Math.sin(P.time * 38) * 0.03 * fear * k;   // 危険が近いと尻尾が逆立つ（細かく震える）
-  d.tail2.rotation.x = -a * 0.25 - fear * 0.25 * k;
-  d.head.rotation.x = g * -Math.sin(d.phase * 2) * 0.05 - a * 0.15;
+  d.legs[0].rotation.x = g * sw * D.legSwing * lg;
+  d.legs[1].rotation.x = g * -sw * D.legSwing * lg;
+  d.legs[0].rotation.z = LP.legL; d.legs[1].rotation.z = LP.legR;   // 足を横へ踏み出す（進む側の脚を大きく開く）
+  d.tail1.rotation.y = g * Math.sin(d.phase) * D.tailSwing + LP.tail;   // 尻尾は移動と反対へ振る
+  d.tail2.rotation.y = g * Math.sin(d.phase - 1.0) * D.tailSwing * 1.2 + LP.tail * 0.7;
+  d.tail1.rotation.x = g * Math.sin(d.phase * 2) * 0.05 - fear * 0.32 * k + Math.sin(P.time * 38) * 0.03 * fear * k;   // 危険が近いと尻尾が逆立つ（細かく震える）
+  d.tail2.rotation.x = -fear * 0.25 * k;
+  d.head.rotation.x = g * -Math.sin(d.phase * 2) * 0.05;
+  d.head.rotation.y = LP.head;   // 頭を移動方向へ向ける
   d.head.position.y = 2.2 + g * Math.sin(d.phase * 2 + 0.6) * 0.05 * (1 + panic * k);   // 走りで頭が上下に揺れる
   d.torso.scale.y = 0.8 * (1 + 0.025 * Math.sin(P.time * (9 + 6 * panic)) * k);   // 呼吸
   // くぐる：頭と体を低くして、足を前に投げ出す（背の高さが 1u ほどになる）。スライド中は走りの揺れを抑える
   const sl = d.slide;
   if (sl > 0.01) {
-    d.root.position.y = P.y - 0.45 * sl;
+    d.root.position.y = -0.45 * sl;
     d.body.scale.y *= 1 - 0.45 * sl; d.body.scale.x *= 1 + 0.08 * sl; d.body.scale.z *= 1 + 0.08 * sl;
     d.body.rotation.x += 0.32 * sl; d.body.position.y *= 1 - sl;
     d.legs[0].rotation.x += (1.15 - d.legs[0].rotation.x) * sl; d.legs[1].rotation.x += (0.85 - d.legs[1].rotation.x) * sl;
@@ -349,7 +351,6 @@ function updateDinoPose(d, P, dt) {
 // 直撃中・起き上がり中のポーズ。体の中心（高さ 1.5）を軸に回転させる
 function updateDinoHit(d, P) {
   const th = P.tumble, t = P.stateT, C = 1.5;
-  d.air += (1 - d.air) * 0.5;
   d.root.rotation.set(th, 0, 0);
   d.root.position.set(0, P.y + C * (1 - Math.cos(th)), -C * Math.sin(th));
   d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - Math.min(1, P.y / 6) * 0.6);
@@ -371,7 +372,6 @@ function updateDinoHit(d, P) {
 // マグマに飲まれる：一瞬もがいて（手足・尻尾をばたつかせ、のけぞり）、溶岩の中へ沈む。P.stateT = 死亡からの秒
 function updateDinoDead(d, P) {
   const C = CFG.magma, t = P.stateT, f = Math.min(1, t / C.deathSec), e = f * f * (3 - 2 * f), fl = Math.max(0, 1 - t / (C.deathSec * 0.85));
-  d.air += (1 - d.air) * 0.3;
   d.group.visible = true;
   d.root.position.set(0, P.y * (1 - Math.min(1, t * 5)) - C.deathSink * e, 0);
   d.root.rotation.set(-0.75 * e + Math.sin(t * 17) * 0.08 * fl, 0, Math.sin(t * 13) * 0.25 * fl);
@@ -386,7 +386,6 @@ function updateDinoDead(d, P) {
 // 立ち姿：呼吸。pant が大きいほど荒く、口をあけてハァハァ。lean は前かがみ（負）/ のけぞり（正）
 function updateDinoStand(d, P, dt, pant, lean) {
   const t = d.clock, k = 1 - Math.exp(-10 * dt), rate = 2.2 + 11 * pant, br = Math.sin(t * rate);
-  d.air += (0 - d.air) * k;
   d.root.position.set(0, 0, 0); d.root.rotation.x = 0; d.root.rotation.z = 0;
   d.body.position.y = Math.max(0, br) * (0.01 + 0.05 * pant);
   d.body.rotation.x += (lean * 0.25 - d.body.rotation.x) * k;

@@ -60,15 +60,16 @@ function fxNearRock(rocks, P, range) {
   return { d: best, nearness: best === Infinity ? 0 : fxClamp01(1 - best / range) };
 }
 
-// 縦のつぶれ（スクワッシュ）の倍率。sinceTakeoff=離陸からの秒、sinceLand=着地からの秒（古い値は大きな数を渡す）。strength=着地の強さ 0〜1
-// 離陸：一瞬しゃがむ（溜め）→ 伸びる。着地：つぶれて戻る
-function fxSquash(sinceTakeoff, sinceLand, strength) {
-  const Q = CFG.fx.squash, k = fxInt();
-  let y = 1;
-  if (sinceLand >= 0 && sinceLand < 0.2) y -= Q.land * fxClamp01(strength) * Math.sin(FX_PI * sinceLand / 0.2) * (1 - sinceLand / 0.2 * 0.3) * k;
-  if (sinceTakeoff >= 0 && sinceTakeoff < 0.26) {
-    if (sinceTakeoff < 0.07) y -= Q.crouch * Math.sin(FX_PI * sinceTakeoff / 0.07) * k;
-    else y += 0.1 * Math.sin(FX_PI * (sinceTakeoff - 0.07) / 0.19) * k;
-  }
-  return y;
+// レーン移動の「入り→戻り」の山（-1〜1）。移動中でなければ 0。符号は移動方向（+1 = 右）、大きさは sin(π×進み具合) で 0 → 1 → 0（移動の秒 lane.shiftSec に合わせる）
+function laneLean(P) {
+  if (!P.laneMove || P.state !== 'run') return 0;
+  const dir = Math.sign(laneX(P.lane) - P.laneFrom), u = clamp01(P.laneT / CFG.lane.shiftSec);
+  return dir * Math.sin(Math.PI * u);
+}
+// 現在の値 cur を目標 target へなめらかに寄せる（連続した移動でもガクつかない）。dt 秒、追従の速さ follow
+function laneLeanFollow(cur, target, dt) { return cur + (target - cur) * (1 - Math.exp(-CFG.dino.laneMove.follow * dt)); }
+// レーン移動の専用ポーズの各部の角度（lean = -1〜1）。上限つき：体の傾き roll・ひねり yaw・頭 head・尻尾 tail（反対へ振る）・脚の開き（進む側の脚 legOut、反対の脚 legIn）
+function laneMovePose(lean) {
+  const K = CFG.dino.laneMove, m = Math.abs(lean);
+  return { roll: -lean * K.roll, yaw: -lean * K.yaw, head: -lean * K.head, tail: -lean * K.tail, legR: lean > 0 ? lean * K.legOut : lean * K.legIn, legL: lean < 0 ? lean * K.legOut : lean * K.legIn, dip: m * K.dip };
 }

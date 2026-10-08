@@ -1,7 +1,8 @@
 // ===== 障害物（純ロジック。three.js 非依存）=====
-// 岩・倒木・クレーター・マグマ溜まりを、走行距離に沿って「枠（slot）」ごとに決める。
-// 枠 k の位置は startDist + k*slotStep + ばらつき(0〜slotStep-minGapZ) なので、隣り合う枠は必ず minGapZ 以上離れる。
-// 1 つの枠には障害物が 1 個までなので、同じ z 帯（横一列）に 2 個並ぶことはない。結果は seed と k だけで決まる（再現できる）。
+// 岩・倒木・クレーター・マグマ溜まり（地上の障害物＝レーンを変えて避ける）とアーチ（頭上＝くぐる）を、走行距離に沿って「行」ごとに決める。
+// 1 つの行 = 同じ z の横一列。地上の障害物は 1 レーン幅（倒木も 1 レーン）で、1 行で塞ぐのは最大 2 レーン（3 レーンすべては塞がない）。
+// 行は手前から順に作り、前の行との間隔は「いちばん不利なレーンからでも、通れるレーンへ移れる時間（レーン移動×必要レーン数＋反応時間）」以上に広げる。
+// 結果は seed と level だけで決まる（同じ引数なら同じ。取り出す範囲の切り方にも依らない）。
 function obRng(seed, k) {   // (seed, k) から作る小さな乱数列（mulberry32）
   let h = (seed | 0) ^ Math.imul((k + 1) | 0, 0x9e3779b1);
   h = Math.imul(h ^ (h >>> 16), 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); h ^= h >>> 16;
@@ -10,83 +11,131 @@ function obRng(seed, k) {   // (seed, k) から作る小さな乱数列（mulber
 }
 function obLerp(a, b, t) { return a + (b - a) * t; }
 
-// 枠が埋まる確率。走行距離で start → end へ線形に増える（level は先取り分 0〜1）
-function obDensity(dist, level) {
-  const D = CFG.obstacle.density, t = clamp01(difficultyAtDist(dist).s + (level || 0));   // 難易度の強度（その距離を走る頃の噴火後の秒から）
-  return obLerp(D.start, D.end, t);
-}
+// その距離を「ふつうに走ったとき」の速さ（u/s）。行の間隔を速さに比例して広げるのに使う
+function obSpeedAt(dist) { return speedAt(nominalTime(dist)); }
+// 障害物の前後の広がり（この範囲に入ると触れる）
+function obExtent(ob) { return (ob.type === 'crater' || ob.type === 'pool' ? ob.r : ob.hd) + CFG.obstacle.depthPad; }
 
-// 枠 k の「素の」障害物（他との兼ね合いを見る前）。無ければ null。乱数は常に同じ順に使う
-// 障害物はレーン単位で置く：岩・クレーター・マグマ溜まりは 1 レーン、倒木・アーチは 1〜2 レーン。ob.lanes = 占有するレーン番号、ob.x = 中心
-function obSlot(seed, k, level) {
-  const O = CFG.obstacle, L = CFG.lane, W = L.width, rng = obRng(seed, k);
-  const u = O.startDist + k * O.slotStep + rng() * (O.slotStep - O.minGapZ);   // 基準速度での位置
-  const dist = O.startDist + (u - O.startDist) * speedScaleAtDist(u);   // 速く走るほど間隔を広げる（時間で見た間隔・ジャンプの余裕が一定になる。単調増加なので順序と最低間隔 minGapZ は保たれる）
-  const fill = rng(), pick = rng(), a = rng(), b = rng(), c = rng();
-  if (fill >= obDensity(dist, level)) return null;
-  const types = ['rock', 'log', 'crater', 'pool', 'arch'].filter(t => dist - O.startDist >= O.unlock[t] && O.weights[t] > 0);
-  if (!types.length) return null;
-  let tot = 0; for (const t of types) tot += O.weights[t];
-  let x = pick * tot, type = types[types.length - 1];
-  for (const t of types) { if (x < O.weights[t]) { type = t; break; } x -= O.weights[t]; }
-  const ob = { type, dist, z: -dist, hit: false };
-  const ln = Math.min(L.count - 1, Math.floor(c * L.count)), pr = Math.min(L.count - 2, Math.floor(c * (L.count - 1)));   // 1 レーンの番号 / 2 レーンの左側の番号
-  const one = { lanes: [ln], x: laneX(ln) }, two = { lanes: [pr, pr + 1], x: (laneX(pr) + laneX(pr + 1)) / 2 };
+// 障害物 1 個を作る。lanes = 占有するレーン番号（地上の障害物は 1 つ、アーチは 1〜2）。a・b は 0〜1 の乱数（大きさのばらつき）
+function obMake(type, lanes, dist, a, b) {
+  const O = CFG.obstacle, W = CFG.lane.width, ob = { type, dist, z: -dist, hit: false, lanes: lanes.slice() };
+  ob.x = lanes.reduce((s, i) => s + laneX(i), 0) / lanes.length;
   if (type === 'rock') {
     const R = O.rock, r = obLerp(R.rMin, R.rMax, a);
-    Object.assign(ob, one, { r, h: obLerp(R.hMin, R.hMax, b), hw: r * R.shrink, hd: r * R.shrink });
-  } else if (type === 'log') {
-    const Lg = O.log, n = a < Lg.oneLane ? 1 : 2, len = n * W - Lg.trim;
-    Object.assign(ob, n === 1 ? one : two, { len, h: Lg.h, hw: len / 2, hd: Lg.r, r: Lg.r });
+    Object.assign(ob, { r, h: obLerp(R.hMin, R.hMax, b), hw: r * R.shrink, hd: r * R.shrink });
+  } else if (type === 'log') {   // 倒木：1 レーン幅の短い丸太（複数のレーンは塞がない）
+    const Lg = O.log;
+    Object.assign(ob, { len: Lg.len, h: Lg.r * 2, hw: Lg.len / 2, hd: Lg.r, r: Lg.r });
   } else if (type === 'crater') {
-    const C = O.crater, r = obLerp(C.rMin, C.rMax, a);
-    Object.assign(ob, one, { r, h: C.clearY, hw: r, hd: r });
+    const r = obLerp(O.crater.rMin, O.crater.rMax, a);
+    Object.assign(ob, { r, h: 0, hw: r, hd: r });
   } else if (type === 'pool') {
-    const Pl = O.pool, r = obLerp(Pl.rMin, Pl.rMax, a);
-    Object.assign(ob, one, { r, h: Pl.clearY, hw: r, hd: r });
-  } else {   // arch：梁が clear の高さにかかる。立ったままだと頭が当たり、滑走（くぐる）なら通れ、ジャンプでは越えられない
-    const A = O.arch, n = b < A.oneLane ? 1 : 2, hw = n * W / 2 - A.inset;
-    Object.assign(ob, n === 1 ? one : two, { hw, hd: A.hd, r: A.hd, h: A.clear, clear: A.clear, top: A.clear + A.beamH });
+    const r = obLerp(O.pool.rMin, O.pool.rMax, a);
+    Object.assign(ob, { r, h: 0, hw: r, hd: r });
+  } else {   // arch：梁が clear の高さにかかる。立ったままだと頭が当たり、滑走（くぐる）なら通れる
+    const A = O.arch, hw = lanes.length * W / 2 - A.inset;
+    Object.assign(ob, { hw, hd: A.hd, r: A.hd, h: A.clear, clear: A.clear, top: A.clear + A.beamH });
   }
   return ob;
 }
 
-// 枠 k の最終的な障害物。近くに倒木（素の判定）があれば、倒木自身が後ろの枠なら消し、他の種類は消す（倒木の前後を空ける）。
-// アーチ（くぐる）の前後 arch.gapZ 以内にも他の障害物を置かない（滑走が終わる前に着地できない並びを避ける。アーチどうしは後ろを消す）。アーチ自身が倒木に消されるときは、他を消す力もなくなる
-function archAlive(seed, k, level, arch) {
-  const O = CFG.obstacle;
-  for (let j = -3; j <= 3; j++) {
-    if (j === 0 || k + j < 0) continue;
-    const n = obSlot(seed, k + j, level);
-    if (n && n.type === 'log' && Math.abs(n.dist - arch.dist) < O.logClearZ * speedScaleAtDist(arch.dist)) return false;
+// 行の配置が生成済みのものを覚えておく（seed×level ごと）。手前から順に作るので、どの範囲から取り出しても同じ結果になる
+const OBGEN = new Map();
+function obGen(seed, level) {
+  const key = (seed | 0) + '|' + (level || 0);
+  let G = OBGEN.get(key);
+  if (!G) {
+    G = { seed: seed | 0, level: level || 0, rows: [], k: 0, end: CFG.obstacle.startDist - 30, prev: null };
+    OBGEN.set(key, G);
+    if (OBGEN.size > 24) OBGEN.delete(OBGEN.keys().next().value);
   }
-  return true;
+  return G;
 }
-function obFinal(seed, k, level) {
-  const O = CFG.obstacle, ob = obSlot(seed, k, level);
-  if (!ob) return null;
-  for (let j = -3; j <= 3; j++) {
-    if (j === 0 || k + j < 0) continue;
-    const n = obSlot(seed, k + j, level);
-    if (!n) continue;
-    if (n.type === 'log' && Math.abs(n.dist - ob.dist) < O.logClearZ * speedScaleAtDist(ob.dist)) {
-      if (ob.type !== 'log' || j < 0) return null;
-    } else if (n.type === 'arch' && ob.type !== 'log' && Math.abs(n.dist - ob.dist) < O.arch.gapZ * speedScaleAtDist(ob.dist) && archAlive(seed, k + j, level, n)) {
-      if (ob.type !== 'arch' || j < 0) return null;
+function obGenClear() { OBGEN.clear(); }   // CFG を書き換えたあと（テスト用）に作り直させる
+
+// 前の行の通れるレーン prevPass から、次の行の通れるレーン pass へ、どのレーンにいても移れるために必要な秒（レーン移動の回数×1 回の秒＋反応時間）
+function obNeedSec(prevPass, pass) {
+  const L = CFG.lane, g = CFG.obstacle.gap;
+  if (!prevPass) return 0;
+  let n = 0;
+  for (const i of prevPass) { let m = 9; for (const j of pass) m = Math.min(m, Math.abs(i - j)); n = Math.max(n, m); }
+  return n > 0 ? n * (L.shiftSec + g.moveExtra) + g.react : 0;
+}
+
+// 次の行を 1 つ作る
+function obGenRow(G) {
+  const O = CFG.obstacle, g = O.gap, nL = CFG.lane.count, rng = obRng(G.seed, G.k++);
+  const dApprox = G.end + 25, dMin = Math.max(G.end + 8, O.startDist), s = clamp01(difficultyAtDist(dApprox).s + G.level);
+  const pickR = rng(), laneR = rng(), nR = rng(), pairR = rng(), lane2R = rng(), type2R = rng(), a = rng(), b = rng(), a2 = rng(), b2 = rng(), jit = rng();
+  const types = ['rock', 'log', 'crater', 'pool', 'arch'].filter(t => dMin - O.startDist >= O.unlock[t] && O.weights[t] > 0);
+  let tot = 0; for (const t of types) tot += O.weights[t];
+  let x = pickR * tot, type = types[types.length - 1];
+  for (const t of types) { if (x < O.weights[t]) { type = t; break; } x -= O.weights[t]; }
+  const obs = [];
+  let blocked = [], pass;
+  if (type === 'arch') {
+    const lanes = nR < O.arch.oneLane ? [Math.min(nL - 1, Math.floor(laneR * nL))] : (() => { const p = Math.min(nL - 2, Math.floor(laneR * (nL - 1))); return [p, p + 1]; })();
+    obs.push(obMake('arch', lanes, 0, a, b)); pass = [...Array(nL).keys()];   // アーチの下はくぐれば通れる＝全レーン
+  } else {
+    const ln = Math.min(nL - 1, Math.floor(laneR * nL));
+    obs.push(obMake(type, [ln], 0, a, b)); blocked = [ln];
+    if (dMin - O.startDist >= O.pair.from && pairR < obLerp(O.pair.p0, O.pair.p1, s)) {   // 2 レーン塞ぐ行（残り 1 レーン）
+      const ln2 = (ln + 1 + Math.min(nL - 2, Math.floor(lane2R * (nL - 1)))) % nL, t2 = ['rock', 'log', 'crater'][Math.min(2, Math.floor(type2R * 3))];
+      obs.push(obMake(t2, [ln2], 0, a2, b2)); blocked.push(ln2);
     }
+    pass = [...Array(nL).keys()].filter(i => blocked.indexOf(i) < 0);
   }
-  return ob;
+  const arch = type === 'arch', ext = Math.max(...obs.map(obExtent));
+  let T = Math.max(g.min, obNeedSec(G.prev && G.prev.pass, pass));
+  let target = obLerp(g.start, g.end, s) * (1 - g.jitter + 2 * g.jitter * jit);
+  if (arch || (G.prev && G.prev.arch)) { T = Math.max(T, g.archSec); target = Math.max(target, g.archSec); }
+  const sec = Math.max(T, target), v0 = obSpeedAt(G.end), v = obSpeedAt(G.end + 2 * sec * v0 * g.margin);   // 速さは先のほうで速い＝大きいほうを使う（安全側）
+  const dist = G.end + sec * v * g.margin + ext;
+  for (const ob of obs) { ob.dist = dist; ob.z = -dist; }
+  const row = { k: G.k - 1, dist, start: dist - ext, end: dist + ext, obs, blocked, pass, arch, type: obs[0].type };
+  obs.forEach(ob => { ob.row = row.k; });
+  G.rows.push(row); G.end = row.end; G.prev = row;
+  return row;
 }
 
-// 走行距離 [-zFrom, -zTo) にある障害物を、手前（スタート側）から順に返す（zFrom > zTo。z は前方が負）。同じ引数なら同じ結果
+// 走行距離 toDist まで（それを越える行が 1 つできるまで）作っておく。返すのは生成済みの全行（読み取り専用）
+function obRows(seed, toDist, level) {
+  const G = obGen(seed, level);
+  while (!G.rows.length || G.rows[G.rows.length - 1].dist < toDist) obGenRow(G);
+  return G.rows;
+}
+
+// 走行距離 [-zFrom, -zTo) にある障害物を、手前（スタート側）から順に返す（zFrom > zTo。z は前方が負）。同じ引数なら同じ結果。返すのは作業用のコピー
 function planObstacles(seed, zFrom, zTo, level) {
-  const O = CFG.obstacle, d0 = -zFrom, d1 = -zTo, out = [];
-  const gMax = CFG.run.maxSpeed / CFG.run.baseSpeed, k0 = Math.max(0, Math.floor((d0 - O.startDist) / (O.slotStep * gMax)) - 1), k1 = Math.ceil((d1 - O.startDist) / O.slotStep) + 1;
-  for (let k = k0; k <= k1; k++) {
-    const ob = obFinal(seed, k, level);
-    if (ob && ob.dist >= d0 && ob.dist < d1) out.push(ob);
+  const d0 = -zFrom, d1 = -zTo, out = [], rows = obRows(seed, d1, level);
+  for (const r of rows) {
+    if (r.dist >= d1) break;
+    if (r.dist < d0) continue;
+    for (const ob of r.obs) out.push(Object.assign({}, ob, { lanes: ob.lanes.slice() }));
   }
   return out;
+}
+
+// 行の列 rows に「通れる経路」があるか。各行で通れるレーン（地上の障害物が無い、またはアーチ）の集合から、レーン移動の時間（1 レーン shiftSec＋反応時間 react）を
+// 考えて最後まで到達できるか（ok）。さらに、どの通れるレーンからでも次の行の通れるレーンへ間に合うか（robust＝行き止まりが無い）。minSlack は余った秒のうち最小のもの
+function obRouteCheck(rows) {
+  const L = CFG.lane, g = CFG.obstacle.gap;
+  let S = null, prev = null, robust = true, minSlack = Infinity;
+  for (const r of rows) {
+    if (!r.pass.length) return { ok: false, robust: false, minSlack: -Infinity, at: r.k };
+    if (!prev) S = r.pass.slice();
+    else {
+      const T = (r.start - prev.end) / obSpeedAt(r.start), need = (i, j) => i === j ? 0 : Math.abs(i - j) * L.shiftSec + g.react;
+      for (const i of prev.pass) {
+        let best = -Infinity; for (const j of r.pass) best = Math.max(best, T - need(i, j));
+        if (best < 0) robust = false; minSlack = Math.min(minSlack, best);
+      }
+      S = r.pass.filter(j => S.some(i => T >= need(i, j)));
+      if (!S.length) return { ok: false, robust: false, minSlack, at: r.k };
+    }
+    prev = r;
+  }
+  return { ok: true, robust, minSlack };
 }
 
 function newObstacles(seed) {
@@ -107,15 +156,14 @@ function stumblePlayer(P) {
   if (P.slow <= 0) { P.slow = S.slowSec; P.slowF = S.slowFactor; }   // すでに減速中ならそのまま
 }
 
-// 障害物 ob にプレイヤー（この 1 フレームで z が prevZ → P.z と動いた）が当たるか。ジャンプで高さが足りていれば当たらない
+// 障害物 ob にプレイヤー（この 1 フレームで z が prevZ → P.z と動いた）が当たるか。レーンが違えば（幅の外なら）当たらない。アーチは滑走中なら通れる
 function obHits(ob, P, prevZ) {
   const O = CFG.obstacle;
-  const top = ob.h - (ob.type === 'rock' || ob.type === 'log' ? O.footMargin : 0);   // 岩・倒木は少し甘め
-  if (ob.type === 'arch') {   // 頭上の障害物：梁の高さ [clear, top] と、立ち（または滑走中）の体の高さ [y, y+高さ] が重なると当たる
-    if (ob.hit || P.y + playerHeight(P) <= ob.clear || P.y >= ob.top) return false;
+  if (ob.hit) return false;
+  if (ob.type === 'arch') {   // 頭上の障害物：梁の下端 clear より体が高い（立っている）と当たる。滑走中（低い姿勢）なら通れる
+    if (playerHeight(P) <= ob.clear) return false;
     return Math.abs(P.x - ob.x) < ob.hw + O.dinoR && P.z <= ob.z + ob.hd + O.depthPad && prevZ >= ob.z - ob.hd - O.depthPad;
   }
-  if (ob.hit || P.y >= top) return false;
   const dx = Math.abs(P.x - ob.x);
   if (ob.type === 'rock' || ob.type === 'log') {
     return dx < ob.hw + O.dinoR && P.z <= ob.z + ob.hd + O.depthPad && prevZ >= ob.z - ob.hd - O.depthPad;
@@ -123,6 +171,7 @@ function obHits(ob, P, prevZ) {
   const dz = ob.z < P.z ? P.z - ob.z : ob.z > prevZ ? ob.z - prevZ : 0;   // この 1 フレームの移動線分と中心との最短の前後差
   return Math.hypot(dx, dz) < ob.r + (ob.type === 'pool' ? O.dinoR : O.dinoR * 0.3);
 }
+
 
 // 1 フレーム進める：前方を生成・後方を破棄・衝突判定。OB.off なら何もしない。ev.hits = [{ ob, kind: 'trip' | 'stumble' }]
 function stepObstacles(OB, P, dt) {

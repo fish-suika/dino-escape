@@ -22,8 +22,8 @@ function scoreStep(S, G, ev, dt) {
     const was = S.inside[r.id]; delete S.inside[r.id];
     if (l.hit) { S.combo = 0; continue; }
     if (P.state !== 'run' || P.invuln > 0) continue;            // 吹き飛び中・復帰後の無敵中は加点しない
-    const R = r.radius + H.dinoR, ratio = Math.hypot(P.x - r.x, P.z - r.z) / R, large = r.size === 'large', air = P.y >= H.maxY;
-    const near = ratio <= SC.near.hi && (ratio >= SC.near.lo || air);   // ギリギリ（円の外すぐ。円の中でも跳んで爆風の上を越えたなら可）
+    const R = r.radius + H.dinoR, ratio = Math.hypot(P.x - r.x, P.z - r.z) / R, large = r.size === 'large';
+    const near = ratio <= SC.near.hi && ratio >= SC.near.lo;   // ギリギリ（円の外すぐ）
     if (near || (large && was)) {                                // 大型は、警告円の中にいたのに着弾までに出て逃げ切ったときも
       if (large) { S.n.big++; scoreAdd(S, 'big', SC.rockLarge, TEXT.big); }
       else { S.n.great++; scoreAdd(S, 'great', SC.rock, TEXT.great); }

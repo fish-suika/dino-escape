@@ -1,6 +1,6 @@
 // ===== Phase 6：難易度・クリア・公平性・ボット =====
 (() => {
-  const D = CFG.difficulty, DT = 1 / 60, NOI = { left: false, right: false, jump: false };
+  const D = CFG.difficulty, DT = 1 / 60, NOI = { left: false, right: false };
   // difficultyAt：ステージ境界・単調性・連続性
   check('難易度：0〜20 秒=tutorial/LOW、20〜40=normal/MID、40〜60=danger/HIGH、60 秒以降=final/MAX',
     difficultyAt(0).name === 'tutorial' && difficultyAt(19.9).label === TEXT.dangerLabels[0] && difficultyAt(20).name === 'normal' && difficultyAt(39.9).label === TEXT.dangerLabels[1] && difficultyAt(40).name === 'danger' && difficultyAt(59.9).label === TEXT.dangerLabels[2] && difficultyAt(60).name === 'final' && difficultyAt(500).label === TEXT.dangerLabels[3]);
@@ -55,14 +55,14 @@
   check('マグマ：近いほど少し遅くなる(ひるみ)。遠ければ影響なし', magmaRubber(1000) === 1 && magmaRubber(0) === CFG.magma.rubberMin && magmaRubber(20) < magmaRubber(40));
   check('マグマ：被弾なしで走り続けると、クリアまでに 20〜60u まで縮む（緊張）', (() => { const G = newGame(); G.RS.timer = 1e9; G.OB.off = true; let mn = 1e9; while (G.M.phase === 'playing') { stepGame(G, NOI, DT); if (G.M.active) mn = Math.min(mn, magmaGap(G.M, G.P)); } window.__quietMin = mn; return G.M.phase === 'clear' && mn >= 20 && mn <= 60; })(), 'min ' + window.__quietMin);
   // 障害物
-  check('障害物：間隔は速く走るほど広がる。最低間隔は常に minGapZ × 速度倍率以上', (() => { const a = planObstacles(9, 0, -1000, 0), b = planObstacles(9, -1800, -2800, 0); const gaps = l => l.slice(1).map((o, i) => o.dist - l[i].dist); return Math.min(...gaps(a)) >= CFG.obstacle.minGapZ - 1e-9 && Math.min(...gaps(b)) >= CFG.obstacle.minGapZ * speedScaleAtDist(1800) - 1e-6 && speedScaleAtDist(2200) > speedScaleAtDist(0); })());
-  check('障害物：高速でも連続した障害物の「時間」の間隔はジャンプの滞空時間 × 0.85 以上', CFG.obstacle.minGapZ / CFG.run.baseSpeed >= jumpStats().air * 0.85 && [0, 500, 1000, 2000, 2200, 6000].every(d => CFG.obstacle.minGapZ * speedScaleAtDist(d) / speedAt(nominalTime(d)) >= jumpStats().air * 0.85 - 1e-9));
+  check('障害物：行の間隔は速く走るほど距離で広がる（高速でも「時間」の間隔は同じ）。最低でも min 秒', (() => { const a = obRows(9, 1000, 0), b = obRows(9, 3500, 0).filter(r => r.dist > 1800 && r.dist < 2800); const gp = (rows, r, i) => (r.start - rows[i - 1].end) / obSpeedAt(r.start); const t = (rows) => rows.slice(1).map((r, i) => gp(rows, r, i + 1)); return Math.min(...t(a)) >= CFG.obstacle.gap.min - 1e-9 && Math.min(...t(b)) >= CFG.obstacle.gap.min - 1e-9 && b.length > 5 && speedAt(nominalTime(2200)) > speedAt(0); })());
+  check('障害物：連続する行の間隔は、どの速さでも「反応時間 + 1 レーン移動」以上（時間）', [0, 500, 1000, 2000, 2200, 6000].every(d => { const rows = obRows(4, d + 600, 0).filter(r => r.dist > d); return rows.slice(1).every((r, i) => (r.start - rows[i].end) / obSpeedAt(r.start) >= CFG.obstacle.gap.react + CFG.lane.shiftSec - 1e-9); }));
   // クリア
   check('クリア：goal.distance は被弾なしで 100〜140 秒(1〜3 分内、目標約 2 分)で届く距離', (() => { const t = nominalTime(CFG.goal.distance); return t >= 100 && t <= 140; })());
   check('クリア：reachedGoal は距離で決まる', (() => { const G = newGame(); const a = reachedGoal(G); G.P.dist = CFG.goal.distance - 0.01; const b = reachedGoal(G); G.P.dist = CFG.goal.distance; return a === false && b === false && reachedGoal(G) === true; })());
   const clearG = () => { const G = newGame(); G.OB.off = true; G.RS.timer = 1e9; G.P.dist = CFG.goal.distance - 0.5; G.P.time = 100; return G; };
   check('クリア：到達したら phase が clear になり、ev.cleared が 1 回だけ立つ', (() => { const G = clearG(); let c = 0; for (let i = 0; i < 120; i++) c += stepGame(G, NOI, DT).cleared ? 1 : 0; return G.M.phase === 'clear' && c === 1; })());
-  check('クリア：clear 中は前進・マグマ・噴石・距離・横移動が止まる', (() => { const G = clearG(); for (let i = 0; i < 60; i++) stepGame(G, NOI, DT); const d = G.P.dist, f = G.M.front, z = G.P.z; spawnRock(G.RS, 'mid', 0, -9999, null); const t0 = G.RS.rocks[0].t; for (let i = 0; i < 300; i++) stepGame(G, { left: true, right: false, jump: true }, DT); return G.P.dist === d && G.M.front === f && G.P.z === z && G.P.x === 0 && G.RS.rocks[0].t === t0 && G.M.phase === 'clear' && G.P.speed === 0; })());
+  check('クリア：clear 中は前進・マグマ・噴石・距離・横移動が止まる', (() => { const G = clearG(); for (let i = 0; i < 60; i++) stepGame(G, NOI, DT); const d = G.P.dist, f = G.M.front, z = G.P.z; spawnRock(G.RS, 'mid', 0, -9999, null); const t0 = G.RS.rocks[0].t; for (let i = 0; i < 300; i++) stepGame(G, { left: true, right: false }, DT); return G.P.dist === d && G.M.front === f && G.P.z === z && G.P.x === 0 && G.RS.rocks[0].t === t0 && G.M.phase === 'clear' && G.P.speed === 0; })());
   check('クリア：到達の時点で落下中の噴石は消え、dead にはならない', (() => { const G = clearG(); spawnRock(G.RS, 'large', 0, -9999, null); for (let i = 0; i < 60; i++) stepGame(G, NOI, DT); return G.RS.rocks.length === 0 && G.M.phase === 'clear' && G.P.state !== 'dead'; })());
   check('クリア：同じフレームで追いつかれたら dead が優先', (() => { const G = clearG(); G.P.dist = CFG.goal.distance - 0.1; G.M.active = true; G.M.front = G.P.dist + 5; G.M.t = 50; let died = false; for (let i = 0; i < 5; i++) { const ev = stepGame(G, NOI, DT); died = died || ev.died; } return died && G.M.phase === 'dead'; })());
   check('クリア：リセットで playing・初期状態に戻る', (() => { const G = clearG(); for (let i = 0; i < 90; i++) stepGame(G, NOI, DT); resetGame(G, 5); return G.M.phase === 'playing' && G.M.clearT === 0 && G.P.dist === 0 && G.RS.s === null && JSON.stringify(G.M) === JSON.stringify(newMagma()); })());
@@ -90,12 +90,12 @@
   })();
   // ボット評価（3 レーン制。見逃し率 err = 各危険を見逃す確率。dodge は隣のレーンへ避ける割合）
   const perfect = botSummary({ err: 0 }, 40), none = botSummary({ err: 1 }, 20), sloppy = botSummary({ err: 0.1 }, 40), bad = botSummary({ err: 0.2 }, 40), worse = botSummary({ err: 0.4 }, 40);
-  const jumpy = botSummary({ err: 0, dodge: 0 }, 20), dodgy = botSummary({ err: 0, dodge: 1 }, 20);
-  window.__bots = { perfect: botLine(perfect), sloppy10: botLine(sloppy), sloppy20: botLine(bad), sloppy40: botLine(worse), none: botLine(none), dodge0: botLine(jumpy), dodge1: botLine(dodgy) };
+  const slidy = botSummary({ err: 0, dodge: 0 }, 20), dodgy = botSummary({ err: 0, dodge: 1 }, 20);
+  window.__bots = { perfect: botLine(perfect), sloppy10: botLine(sloppy), sloppy20: botLine(bad), sloppy40: botLine(worse), none: botLine(none), dodge0: botLine(slidy), dodge1: botLine(dodgy) };
   const pre = document.createElement('pre'); pre.id = 'bots'; pre.style.cssText = 'color:#9ab;font-size:12px;margin-top:12px;white-space:pre-wrap';
   pre.textContent = Object.entries(window.__bots).map(([k, v]) => k + ': ' + v).join('\n'); document.body.appendChild(pre);
   check('ボット：完璧に避けるボットは 85% 以上クリアでき、クリア時間は 1〜3 分(約 2 分)', perfect.clearRate >= 0.85 && perfect.clearT >= 100 && perfect.clearT <= 140, botLine(perfect));
-  check('ボット：ジャンプ・くぐる中心（dodge 0）でも、隣のレーンへ避ける中心（dodge 1）でも、完璧なら 80% 以上クリアできる', jumpy.clearRate >= 0.8 && dodgy.clearRate >= 0.8, botLine(jumpy) + ' / ' + botLine(dodgy));
+  check('ボット：アーチをくぐる中心（dodge 0）でも、隣のレーンへ避ける中心（dodge 1）でも、完璧なら 80% 以上クリアできる', slidy.clearRate >= 0.8 && dodgy.clearRate >= 0.8, botLine(slidy) + ' / ' + botLine(dodgy));
   check('ボット：何も避けない(立ち止まる)ボットはほぼ全員(90% 以上)100 秒以内に死ぬ', none.clearRate <= 0.1 && Math.max(...none.deadTs) < 100, botLine(none));
   check('ボット：10% 見逃すボットは半分前後(40〜90%)クリア、20% / 40% と見逃すほど減る（ギリギリ）', sloppy.clearRate >= 0.4 && sloppy.clearRate <= 0.9 && bad.clearRate > 0.1 && bad.clearRate < sloppy.clearRate && worse.clearRate < bad.clearRate && worse.clearRate <= 0.4, botLine(sloppy) + ' / ' + botLine(bad) + ' / ' + botLine(worse));
   check('ボット：失敗するときの死亡時刻は後半(平均 70 秒以降)に偏る', isNaN(bad.deadT) || bad.deadT >= 70, botLine(bad));

@@ -78,7 +78,7 @@
     flowRestart(F, G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1; overShown = false; sighT = 0;
     keysClear();
     resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
-    dino.phase = 0; dino.air = 0; dino.slide = 0; dino.group.visible = true; dino.clr = null; dino.idle = false;
+    dino.phase = 0; dino.slide = 0; dino.lm = 0; dino.group.visible = true; dino.clr = null; dino.idle = false;
     [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); hudReset(); shownDanger = -1; $flash.style.opacity = 0;
     sndMagmaUpdate(0); sndSetVolcanoMul(1); fxResetView(); syncPause();
   }
@@ -95,7 +95,7 @@
     flowToTitle(F, G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1; overShown = false; sighT = 0;
     keysClear();
     resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
-    dino.phase = 0; dino.air = 0; dino.slide = 0; dino.group.visible = true; dino.clr = null; dino.idle = true;
+    dino.phase = 0; dino.slide = 0; dino.lm = 0; dino.group.visible = true; dino.clr = null; dino.idle = true;
     [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); hudReset(); shownDanger = -1; $flash.style.opacity = 0;
     sndMagmaUpdate(0); sndSetVolcanoMul(0.7); fxResetView(); hudMode('title'); hudTitleBest(F.best); syncPause();
   }
@@ -115,7 +115,7 @@
   function pauseToggle() {   // Esc / P：プレイ中は一時停止、メニューなら再開（カウントダウン開始）、カウントダウン中ならメニューへ戻る
     if (!F.paused) doPause(); else if (flowMenuShown(F)) { flowResume(F); syncPause(); } else doPause();
   }
-  function pauseFrame(dt) { stepFlow(F, G, { left: false, right: false, jump: false, slide: false }, dt); keysClear(); syncPause(); }
+  function pauseFrame(dt) { stepFlow(F, G, { left: false, right: false, slide: false }, dt); keysClear(); syncPause(); }
   document.querySelectorAll('#pauseUI .pitems button').forEach(b => {
     const i = +b.dataset.i;
     b.addEventListener('mousedown', e => e.preventDefault());                 // ボタンにフォーカスを残さない（Space で二重に押されない）
@@ -126,7 +126,7 @@
 
   function update(dt) {
     // 吹き飛び・起き上がり中は stepPlayer が入力を無視する。dead の間は stepGame が前進・操作・噴石の新規生成を止める。title の間は何も進めない
-    const ev = stepFlow(F, G, { left: KEYS.leftQ, right: KEYS.rightQ, jump: KEYS.jumpQ, slide: KEYS.slideQ }, dt);
+    const ev = stepFlow(F, G, { left: KEYS.leftQ, right: KEYS.rightQ, slide: KEYS.slideQ }, dt);
     keysClear();
     const mode = F.mode, C = F.clear, title = mode === 'title', playing = mode === 'playing', clearing = mode === 'clear';
     hudMode(mode);

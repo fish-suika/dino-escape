@@ -60,7 +60,7 @@ function stepGame(G, inp, dt, rng) {
     }
   } else if (M.phase === 'clear') {
     P.stateT += dt; M.clearT += dt;
-    if (!P.grounded) { P.vy -= CFG.jump.gravity * dt; P.y += P.vy * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; P.grounded = true; } }   // 空中でクリアしたら着地だけする
+    if (!P.grounded) { P.vy -= CFG.fall.gravity * dt; P.y += P.vy * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; P.grounded = true; } }   // 空中でクリアしたら着地だけする
   } else {
     P.stateT += dt;
     const r = stepRocks(RS, P, dt, false, rng); ev.landed = r.landed;

@@ -3,14 +3,15 @@ const CFG = {
   run: { baseSpeed: 16, accel: 0.04, maxSpeed: 34 },                  // 前進：基準速度 / 経過秒あたりの加速（u/s²）/ 上限（単位 u = 1m）
   lane: { count: 3, width: 4.5, shiftSec: 0.13, bufferSec: 0.15, bufferMax: 2 },   // 3 レーン制：レーン数 / レーン幅(u) / 隣のレーンへ移る秒 / 移動中に来た入力を覚えておく秒と個数（左右キーは押すたび 1 レーン。押しっぱなしでは動かない）
   move: { maxX: 6.75 },                                               // 吹き飛び中に出られる左右限界（= lane.width × 1.5。端のレーン中心 ±4.5 の外側に少し余白）
-  slide: { sec: 0.7, cooldown: 0.2, buffer: 0.15, dive: 24, standH: 2.9, slideH: 1.0 },   // くぐる（S / ↓）：滑走の秒 / 終わってから次を出せるまで / 押すのが早すぎたとき覚えておく秒 / 空中で押したときの急降下の速さ / 当たり判定の高さ（立ち / 滑走中）
-  jump: { velocity: 11.5, gravity: 32 },                              // ジャンプ初速 / 重力
-  cam: { back: 11, height: 6.2, lookAhead: 14, lookY: 1.2, follow: 5, followXSpeed: 3.2, followX: 0.6, lookFollowX: 0.7, fov: 60, fovSpeed: 0.35, fovMax: 78, jumpLift: 0.35 },   // 後方距離 / 高さ / 先を見る距離 / 注視点の高さ / 追従の速さ / 横追従率 / 画角と速度による広がり
-  world: { groundSize: 600, texRepeat: 40, fogColor: 0x5a2f26, fogNear: 50, fogFar: 260, clearHalf: 11,
-           rocks: 46, hills: 14, spawnAhead: 220, spawnBehind: 30, spread: 110 },   // 地面の大きさ / テクスチャ繰り返し / フォグ / 装飾を置かない中央の半幅（遊べる範囲の外側）/ 装飾の数 / 先に出す距離・消す距離 / 左右の散らばり幅
-  dino: { runFreq: 0.55, legSwing: 0.95, tailSwing: 0.35, bob: 0.09, tuck: 1.0, lean: 0.008, leanMax: 0.35 },   // 脚ふりの速さ（距離あたり）/ 脚の振れ幅 / 尻尾の揺れ / 上下の弾み / ジャンプ時の足たたみ / 横移動の傾き（横速度あたり）と上限
+  slide: { sec: 0.7, cooldown: 0.2, buffer: 0.15, standH: 2.9, slideH: 1.0 },   // くぐる（S / ↓）：滑走の秒 / 終わってから次を出せるまで / 押すのが早すぎたとき覚えておく秒 / 当たり判定の高さ（立ち / 滑走中）
+  fall: { gravity: 32 },                                              // 吹き飛ばされたときの重力（ジャンプは廃止。操作は横回避＋くぐるだけ）
+  cam: { back: 11, height: 6.2, lookAhead: 14, lookY: 1.2, follow: 5, followXSpeed: 3.2, followX: 0.6, lookFollowX: 0.7, fov: 60, fovSpeed: 0.35, fovMax: 78 },   // 後方距離 / 高さ / 先を見る距離 / 注視点の高さ / 追従の速さ / 横追従率 / 画角と速度による広がり
+  world: { groundSize: 600, texRepeat: 40, fogColor: 0x5a2f26, fogNear: 50, fogFar: 260, decorGap: 3.5, vergeGap: 1.6,
+           rocks: 46, hills: 14, verge: 36, trees: 22, spawnAhead: 220, spawnBehind: 30, spread: 110 },   // 地面の大きさ / テクスチャ繰り返し / フォグ / 装飾（大岩・丘）の「レーンに近い側のふち」を走れる範囲（move.maxX）の外へ離す余裕 / 道のふち取り（小岩・枯れ木）の余裕 / 装飾・ふち取りの数 / 先に出す距離・消す距離 / 左右の散らばり幅
+  dino: { runFreq: 0.55, legSwing: 0.95, tailSwing: 0.35, bob: 0.09,   // 脚ふりの速さ（距離あたり）/ 脚の振れ幅 / 尻尾の揺れ / 上下の弾み
+          laneMove: { roll: 0.34, yaw: 0.22, head: 0.6, tail: 0.75, legOut: 0.55, legIn: 0.18, dip: 0.06, follow: 40 } },   // レーン移動の専用ポーズ（0.13 秒に合わせて入り→戻り）：体の傾き(rad・上限) / 体のひねり / 頭を向ける / 尻尾を反対へ振る / 踏み出す脚の開き / 後ろ脚の開き / 沈み込み / 追従の速さ
   craterLook: {   // クレーターの見た目（当たり判定の半径 r = 縁の山の頂点。窪みは半径 r の内側）
-    depth: 0.6, rimH: 0.28,                          // 窪みの深さ(u) / 縁の盛り上がりの高さ(u)。ジャンプ（clearY 0.5）で越えられる大きさ
+    depth: 0.6, rimH: 0.28,                          // 窪みの深さ(u) / 縁の盛り上がりの高さ(u)
     rim: 0xd2cdc7, rimSlope: 0x8c7b70, wall: 0x35190f, floor: 0x120504,   // 縁の頂点（明るい灰）/ 縁の外の斜面 / 内側の壁 / 底（暗い赤茶）
     debris: 8, scorch: 0.45, smoke: 0.22              // 縁のまわりの岩・土塊の数 / 焦げ跡の濃さ / 煙の濃さ
   },
@@ -35,7 +36,7 @@ const CFG = {
             large: { radius: 4.8, vis: 2.8,  warn: 1.6, fallH: 19, power: 1.8,  shake: 0.55, slowSec: 1.7, slowF: 0.65 } },
           fair: { react: 0.3, margin: 0.1, moveExtra: 0.05, tries: 6, retry: 0.2 },   // 公平性（避けようがない噴石を出さない）：人間の反応時間 / 円の外に出る余裕 / レーン移動 1 回ごとに足す余裕の秒 / 場所の選び直し回数 / だめなら待つ秒
           sparkMax: 850, dustMax: 640, craterMax: 10, craterLife: 4.5, ringMax: 8, shakeDecay: 6 },                          // 火の粉・土煙の粒数 / クレーター跡の数と残る秒 / 衝撃波リング数 / 揺れの収まる速さ
-  hit: { dinoR: 0.9, maxY: 1.5,                                                                                             // 恐竜の当たり半径 / これより高く跳んでいれば爆風の上を越える
+  hit: { dinoR: 0.9,                                                                                                       // 恐竜の当たり半径（着弾半径＋これの中にいれば、高さに関係なく直撃。スライド中でも当たる）
          knockBase: 0.4, knockPer: 0.3, kickSide: 7, kickUp: 10.5, kickFwd: 12, spin: 9,                                       // 吹き飛び：秒（基本＋強さ×）/ 横・上・前方への初速（×強さ）/ 回転（rad/s）
          bounce: 0.42, bounceMin: 2.5, friction: 2.2, knockMul: 0.15,                                                        // バウンドの反発 / 止まる最小の落下速度 / 地面での減速 / 吹き飛び中の前進倍率
          recoverSec: 0.4, recoverMul: 0.5, slowRamp: 0.7,                                                              // 起き上がりの秒と前進倍率 / 減速から戻るまでにかける秒（減速の秒と倍率は rock.sizes の slowSec / slowF）
@@ -47,16 +48,20 @@ const CFG = {
            view: { far: 15, near: 4, min: 0.22, ease: 7 },                                                                    // 先端が近いとき恐竜が溶岩に隠れないよう、溶岩の高さを低くする：低くし始める距離 / 最も低くなる距離 / そのときの高さの倍率 / 死亡で元の高さへ戻る速さ
            dangerGaps: [110, 75, 50, 28, 14],                                                                                 // HUD ゲージの点灯しきい値（この距離より近いと点が1つずつ点く）
            sparkMax: 360, steamMax: 200, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
-  obstacle: { seed: 1234, startDist: 50, slotStep: 20, minGapZ: 14, logClearZ: 30, aheadDist: 150, behindDist: 12, chunk: 40,   // 乱数の種 / 最初の障害物までの距離(u) / 配置の枠の間隔 / 前後の障害物の最低間隔（枠内のばらつきは slotStep-minGapZ）/ 倒木の前後に他を置かない距離 / 先に出す距離・消す距離 / まとめて作る長さ
-              density: { start: 0.45, end: 0.9 },                                                                           // 枠が埋まる確率：難易度の強度 s（0〜1）で 序盤→終盤の値へ（その距離を「ふつうに走ったときの噴火後の秒」に直して使う）
+  // 障害物（ジャンプ廃止後）：地上の障害物（岩・倒木・クレーター・マグマ溜まり）は「レーンを変えて避ける」、アーチは「くぐる」。
+  // 配置は 1 行（= 同じ z の横一列）ずつ手前から順に作る。どの行も通れるレーンが 1 本以上残り（地上の障害物で塞ぐのは最大 2 レーン）、
+  // 次の行までの間隔は、いちばん不利なレーンからでも通れるレーンへ移れる時間（レーン移動×必要レーン数＋反応時間）以上に広げる。
+  obstacle: { seed: 1234, startDist: 50, aheadDist: 150, behindDist: 12, chunk: 40,   // 乱数の種 / 最初の障害物までの距離(u) / 先に出す距離・消す距離 / まとめて作る長さ
+              gap: { start: 2.4, end: 1.05, jitter: 0.3, min: 0.5, react: 0.25, moveExtra: 0.03, margin: 1.08, archSec: 1.5 },   // 行と行の「窓」（障害物の前後の範囲）のあいだの目安の秒：序盤 → 終盤（難易度の強度 s で補間）/ ばらつき(±割合) / 最低秒 / 反応時間 / レーン移動 1 回ごとの余裕 / 速さの見積りの余裕(倍) / アーチの前後に空ける秒
+              pair: { from: 220, p0: 0, p1: 0.35 },                                                                          // 2 レーン塞ぐ行（残り 1 レーン）：出始める距離(startDist から) / 出る確率 序盤 → 終盤
               unlock: { rock: 0, crater: 70, log: 110, pool: 200, arch: 40 },                                               // 各障害物が出始める走行距離（startDist からの増分。arch=40 は距離 90 から）
               weights: { rock: 0.30, log: 0.22, crater: 0.18, pool: 0.12, arch: 0.18 },                                     // 出現の重み
-              rock: { rMin: 1.0, rMax: 1.5, hMin: 1.0, hMax: 1.4, shrink: 0.85 },                                           // 岩（1 レーン・レーン中心）：半径 / 高さ（ジャンプ頂点は約2.07）/ 当たりの縮小率
-              log: { r: 0.6, h: 1.2, trim: 0.5, oneLane: 0.35 },                                                            // 倒木（1〜2 レーン分の長さ）：幹の半径 / 高さ / レーン幅の合計から削る長さ / 1 レーン分の短い倒木になる割合（残りは 2 レーン分）
-              crater: { rMin: 1.5, rMax: 2.5, clearY: 0.5 },                                                                // クレーター（1 レーン）：半径 / これより高く跳んでいれば越える
-              pool: { rMin: 2.0, rMax: 3.3, clearY: 1.4 },                                                                  // マグマ溜まり（1 レーン。半径 +恐竜半径が隣のレーン中心に届かない）：半径 / これより高く跳んでいれば上を越える（実質は隣のレーンへ避ける）
-              arch: { clear: 1.7, beamH: 1.0, hd: 0.9, inset: 0.2, oneLane: 0.5, gapZ: 20 },                                // 頭上の障害物（くぐる）：下をくぐれる高さ / 梁の厚み / 前後の半分の長さ / レーン端からの引っ込み / 1 レーン幅になる割合（残りは 2 レーン）/ 他の障害物との最低間隔（基準速度。速いほど広がる）。梁の下端 clear > slideH なので立ったままだと頭が当たり、梁の上端 clear+beamH > ジャンプ頂点なのでジャンプでは越えられない
-              dinoR: 0.6, depthPad: 0.7, footMargin: 0.2,                                                                                 // 障害物に対する恐竜の当たり半径 / 前後方向の余裕 / 岩・倒木は足がこの分だけ上に出ていれば越えたことにする（甘め）
+              rock: { rMin: 1.0, rMax: 1.5, hMin: 1.0, hMax: 1.4, shrink: 0.85 },                                           // 岩（1 レーン・レーン中心）：半径 / 高さ / 当たりの縮小率
+              log: { r: 0.55, len: 3.0 },                                                                                   // 倒木（1 レーン幅・短い丸太）：幹の半径 / 長さ（レーン幅 4.5 より短い）
+              crater: { rMin: 1.5, rMax: 2.5 },                                                                             // クレーター（1 レーン）：半径
+              pool: { rMin: 2.0, rMax: 3.3 },                                                                               // マグマ溜まり（1 レーン。半径 +恐竜半径が隣のレーン中心に届かない）：半径
+              arch: { clear: 1.7, beamH: 1.0, hd: 0.9, inset: 0.2, oneLane: 0.5 },                                          // 頭上の障害物（くぐる）：下をくぐれる高さ / 梁の厚み / 前後の半分の長さ / レーン端からの引っ込み / 1 レーン幅になる割合（残りは 2 レーン）。梁の下端 clear > slideH なので立ったままだと頭が当たる
+              dinoR: 0.6, depthPad: 0.7,                                                                                    // 障害物に対する恐竜の当たり半径 / 前後方向の余裕
               trip: { knock: 0.6, up: 6.5, fwd: 7, spin: 7, slowSec: 2.2, slowFactor: 0.6, shake: 0.14 },                   // 岩・倒木で転倒：転がる秒 / 跳ね上がり / 前へ転がる初速 / 回転 / 減速の秒と倍率 / 画面揺れ
               poolTrip: { knock: 0.8, up: 8, fwd: 5, spin: 8, slowSec: 3.0, slowFactor: 0.42, shake: 0.2 },                 // マグマ溜まりに触れた：転倒＋強めの減速
               stumble: { slowSec: 1.0, slowFactor: 0.7, tiltSec: 0.5 },                                                     // クレーター：つまずき（転倒しない・軽い減速）
@@ -80,7 +85,7 @@ const CFG = {
   // スコア（Phase 8）：基本＝走った距離(m)。ボーナスは 噴石のギリギリ回避 / 大型噴石の回避 / 障害物の連続回避 / マグマが近いまま走り続ける
   score: {
     bestKey: 'dino-escape-best',                                      // localStorage のキー
-    near: { lo: 1.0, hi: 1.8 },                                      // 着弾点からの距離が（着弾半径＋恐竜半径）のこの倍率の範囲なら「ギリギリ回避」（ジャンプで爆風の上を越えたときは lo 未満でも可）
+    near: { lo: 1.0, hi: 1.8 },                                      // 着弾点からの距離が（着弾半径＋恐竜半径）のこの倍率の範囲なら「ギリギリ回避」
     rock: 100, rockLarge: 300,                                       // ギリギリ回避のボーナス（大型は 300）。1 つの噴石につき 1 回だけ（大型の警告円から逃げ切ったときも同じ額）
     comboFrom: 3, comboMul: 50, comboCap: 10, comboLateral: 3.0,     // 障害物の連続回避：3 連続以上で 50×連続数（連続数は cap まで）/ 「回避した」と数える左右の近さ（障害物の幅＋恐竜半径にこの余裕）
     magmaGap: 20, magmaPerSec: 40,                                   // マグマとの距離がこれ以内の状態で走り続けると、1 秒ごとにボーナス
@@ -91,9 +96,9 @@ const CFG = {
     stopDist: 26, runIn: 2.8,                                        // 安全地帯へ走り込む距離(u) と その秒（自動で減速して止まる）
     breathe: 2.0, lookBack: 2.2, lookTurn: 1.5,                      // 息を切らす秒 / 振り返りの段階の秒（そのうち回る秒。残りは火山を見つめる間）
     eruption: 3.4, relief: 3.8, reliefText: 1.1,                     // 大爆発の秒 / ホッとする段階の秒 / 「……危なかった」が出るまでの秒
-    skipFrom: 3.0,                                                   // Space で結果画面へ飛ばせるようになる秒（クリアから。連打のジャンプで誤って飛ばさない）
+    skipFrom: 3.0,                                                   // Space で結果画面へ飛ばせるようになる秒（クリアから。連打で誤って飛ばさない）
     safeZone: 12,                                                    // ゴールの手前この距離から先には障害物を置かない
-    cave: { mouth: 12, length: 48, halfW: 17, height: 30, mass: 34 }, // 洞窟：入口の位置(ゴールから) / 奥行き / 中の半幅 / 高さ / 左右の岩山の厚み
+    cave: { mouth: 12, length: 48, halfW: 17, height: 16 }, // 洞窟：入口の位置(ゴールから) / 奥行き / 中の半幅 / 中の高さ（山の高さ・入口の形は 34-cave.js）
     vol: { safe: 0.25, boom: 1.5, after: 0.4 },                       // 火山の音量の倍率：安全地帯の中 / 大爆発 / そのあと
     flash: { sec: 1.4, max: 1 }, shake: { amp: 0.7, sec: 1.8, rumble: 0.14 }, mega: { burst: 220, smokeMul: 0.8, fireMul: 2.5 },   // 巨大な閃光 / 画面揺れ / 噴煙の増やし方
     lavaSink: 9, lavaSinkSec: 3                                      // クリア後、マグマが引いて沈む（深さと秒）
@@ -111,16 +116,15 @@ const CFG = {
     blast: { fireLarge: 7, fireMid: 3, smokeLarge: 16, smokeMid: 5, debrisLarge: 18, debrisMid: 7, debrisSmall: 3 },   // 噴石着弾：火球 / 黒煙の柱 / 飛び散る破片 の粒数
     tail: { spark: 1.6, smoke: 1.35 },                                 // 落下中の噴石の尾（火の粉・煙）の量の倍率
     runDust: { perUnit: 0.32, size: 1.3 },                             // 走りの土煙：距離 1u あたりの粒数（速度連動）/ 大きさ
-    landDust: 12,                                                      // ジャンプ着地の砂煙の粒数（強く着地するほど増える）
+    laneDust: 7,                                                       // レーン移動の砂煙の粒数（移動と反対側の足もと）
     magma: { spark: 70, steam: 26 },                                   // マグマ先端の火の粉・蒸気の毎秒の量（近いほど増える）
     fear: { range: 11 },                                               // 噴石の危険マーカーがこの距離(u)以内に近づくと恐竜が焦る
     panic: { range: 34 },                                              // マグマとの距離(u)がこれ以内だと必死な走り（脚が速い・口を開ける）
-    squash: { land: 0.3, crouch: 0.16 },                               // 着地のつぶれの最大 / 離陸前の溜めの深さ
     beep: { range: 10, gap: 0.14 },                                    // 危険マーカーが近くに出たとき「ピッ」と鳴る距離 / 連続で鳴らさない間隔(秒)
     edge: { base: 0.08, perS: 0.27 },                                   // 噴火中の画面端の赤い縁：基本の濃さ / 難易度の強度 s ごとの上乗せ
     hintSec: 7                                                         // 操作ヒントを出しておく秒（その後フェードアウト）
   },
-  sound: { vol: { fall: 0.8, impact: 1.0, scream: 0.8, step: 0.55, jump: 0.6, slide: 0.7, land: 0.7, stinger: 0.7, beep: 0.4, hit: 1.0 }, master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
+  sound: { vol: { fall: 0.8, impact: 1.0, scream: 0.8, step: 0.55, slide: 0.7, stinger: 0.7, beep: 0.4, hit: 1.0, lane: 0.55 }, master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
   pause: { stepSec: 1.0, steps: 3 },                                  // 一時停止から再開するときのカウントダウン：1 つ数える秒 / 数える回数（3→2→1）
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };

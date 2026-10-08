@@ -1,6 +1,6 @@
 // ===== 改修B：一時停止（ポーズ）と、タイトルへ戻る =====
 (() => {
-  const DT = 1 / 60, NOI = { left: false, right: false, jump: false, slide: false }, CP = CFG.pause;
+  const DT = 1 / 60, NOI = { left: false, right: false, slide: false }, CP = CFG.pause;
   const quietG = () => { const G = newGame(); G.OB.off = true; G.RS.timer = 1e9; return G; };
   const run = (F, G, n) => { for (let i = 0; i < n; i++) stepFlow(F, G, NOI, DT); };
   const playing = () => { const G = quietG(), F = newFlow(null); flowStart(F); run(F, G, 60); return { G, F }; };
@@ -72,4 +72,10 @@
     }
     return ok;
   })());
+})();
+
+// ===== 改修C：ゲーム名・操作文言（ジャンプ廃止）=====
+(() => {
+  check('文言：ゲーム名（ロゴ・タブのタイトル）は英語の DINO ESCAPE、サブタイトルは日本語のまま', TEXT.logo === 'DINO ESCAPE' && TEXT.docTitle.indexOf('DINO ESCAPE') === 0 && TEXT.tag === '火山から逃げろ！');
+  check('文言：操作ヒント・キー表にジャンプが無く、レーン移動・くぐる・一時停止・音がある', TEXT.hint.indexOf('ジャンプ') < 0 && TEXT.keyJump === undefined && TEXT.keySpace === undefined && TEXT.hint.indexOf('レーン移動') >= 0 && TEXT.hint.indexOf('くぐる') >= 0 && TEXT.hint.indexOf('一時停止') >= 0 && TEXT.hint.indexOf('音') >= 0);
 })();

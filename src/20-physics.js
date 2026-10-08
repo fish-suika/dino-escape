@@ -7,19 +7,20 @@ function laneNearest(x) { const L = CFG.lane; return Math.max(0, Math.min(L.coun
 
 // state: run（操作可）/ knocked（吹き飛び中・操作不能）/ recover（起き上がり中・操作不能）
 // lane = 目標のレーン（移動中は行き先）/ laneMove = 移動中か / laneFrom・laneT = 移動の出発 x と経過秒 / laneBuf = 移動中に来た入力 [{ dir, t }]
-// sliding = 滑走中 / slideT = 滑走の残り秒 / slideCd = 次を出せるまでの秒 / slideBuf = 早押しの覚え秒 / dive = 空中で急降下中
+// sliding = 滑走中 / slideT = 滑走の残り秒 / slideCd = 次を出せるまでの秒 / slideBuf = 早押しの覚え秒
+// （ジャンプは廃止。y・vy・grounded は吹き飛ばされている間だけ使う）
 function newPlayer() {
   return { x: 0, y: 0, z: 0, vx: 0, vy: 0, grounded: true, speed: CFG.run.baseSpeed, time: 0, dist: 0,
-           lane: (CFG.lane.count - 1) >> 1, laneMove: false, laneFrom: 0, laneT: 0, laneBuf: [], sliding: false, slideT: 0, slideCd: 0, slideBuf: 0, dive: false,
+           lane: (CFG.lane.count - 1) >> 1, laneMove: false, laneFrom: 0, laneT: 0, laneBuf: [], sliding: false, slideT: 0, slideCd: 0, slideBuf: 0,
            state: 'run', stateT: 0, knockT: 0, kvx: 0, kvf: 0, tumble: 0, spinRate: 0, power: 0, slow: 0, slowF: 1, invuln: 0, hits: 0, trips: 0, stumbleT: 0 };
 }
 
 function approach(v, target, amount) { return v < target ? Math.min(target, v + amount) : Math.max(target, v - amount); }
 
-// 噴石が地面に着弾したとき、恐竜に当たるか（地上付近にいて、無敵でなく、操作可能な状態のときだけ）
+// 噴石が地面に着弾したとき、恐竜に当たるか（無敵でなく、操作可能な状態で、着弾半径＋恐竜半径の中にいれば直撃。高さ・スライドは関係ない）
 function rockHitsPlayer(P, rx, rz, radius) {
   const H = CFG.hit;
-  return P.state === 'run' && P.invuln <= 0 && P.y < H.maxY && Math.hypot(P.x - rx, P.z - rz) < radius + H.dinoR;
+  return P.state === 'run' && P.invuln <= 0 && Math.hypot(P.x - rx, P.z - rz) < radius + H.dinoR;
 }
 
 // 直撃：着弾中心から外向き＋上向き＋前方へ吹き飛ばす。size は 'small' | 'mid' | 'large'
@@ -37,7 +38,7 @@ function knockPlayer(P, rx, rz, size) {
 
 // 操作不能になるとき：レーン移動・入力の覚え・滑走をやめる（起き上がりで一番近いレーンへ戻る）
 function lanePlayerCancel(P) {
-  P.laneMove = false; P.laneBuf.length = 0; P.sliding = false; P.slideT = 0; P.slideBuf = 0; P.dive = false;
+  P.laneMove = false; P.laneBuf.length = 0; P.sliding = false; P.slideT = 0; P.slideBuf = 0;
 }
 
 function stepKnocked(P, dt) {
@@ -46,7 +47,7 @@ function stepKnocked(P, dt) {
   P.x += P.kvx * dt;
   if (P.x > M.maxX) { P.x = M.maxX; P.kvx = -Math.abs(P.kvx) * 0.4; }
   if (P.x < -M.maxX) { P.x = -M.maxX; P.kvx = Math.abs(P.kvx) * 0.4; }
-  P.vy -= CFG.jump.gravity * dt; P.y += P.vy * dt;
+  P.vy -= CFG.fall.gravity * dt; P.y += P.vy * dt;
   if (P.y <= 0) {
     P.y = 0;
     if (P.vy < -H.bounceMin) { P.vy = -P.vy * H.bounce; P.grounded = false; } else { P.vy = 0; P.grounded = true; }
@@ -88,39 +89,33 @@ function stepLane(P, inp, dt) {
   P.vx = dt > 0 ? (P.x - x0) / dt : 0;
 }
 
-// くぐる（滑走）：地上で S / ↓。空中なら急降下して、着地したらすぐ滑走
+// くぐる（滑走）：S / ↓
 function slideStart(P) { P.sliding = true; P.slideT = CFG.slide.sec; P.slideBuf = 0; }
 function stepSlide(P, inp, dt) {
   const S = CFG.slide;
   if (P.slideCd > 0) P.slideCd = Math.max(0, P.slideCd - dt);
   if (P.slideBuf > 0) P.slideBuf = Math.max(0, P.slideBuf - dt);
   if (inp.slide) {
-    if (!P.grounded) { if (P.y > 0.15) { P.dive = true; P.vy = Math.min(P.vy, -S.dive); } }
-    else if (!P.sliding && P.slideCd <= 0) slideStart(P);
+    if (!P.sliding && P.slideCd <= 0) slideStart(P);
     else if (!P.sliding) P.slideBuf = S.buffer;   // クールダウン中に押した：終わったらすぐ出す
   }
   if (P.sliding) {
     P.slideT -= dt;
     if (P.slideT <= 0) { P.sliding = false; P.slideT = 0; P.slideCd = S.cooldown; }
-  } else if (P.slideBuf > 0 && P.grounded && P.slideCd <= 0) slideStart(P);
+  } else if (P.slideBuf > 0 && P.slideCd <= 0) slideStart(P);
 }
 // 当たり判定の高さ（滑走中は低い）
 function playerHeight(P) { return P.sliding ? CFG.slide.slideH : CFG.slide.standH; }
 
-// inp = { left, right, jump, slide }（すべて「押した瞬間」の 1 回分。押しっぱなしは無視）。P を直接更新する
+// inp = { left, right, slide }（すべて「押した瞬間」の 1 回分。押しっぱなしは無視。jump は廃止＝入力があっても無視される）。P を直接更新する
 function stepPlayer(P, inp, dt) {
-  const J = CFG.jump, H = CFG.hit;
+  const H = CFG.hit;
   if (P.invuln > 0) P.invuln = Math.max(0, P.invuln - dt);
   if (P.stumbleT > 0) P.stumbleT = Math.max(0, P.stumbleT - dt);
   let mul = 1;
   if (P.state === 'run') {
     stepLane(P, inp, dt);
-    if (inp.jump && P.grounded) { P.vy = J.velocity; P.grounded = false; if (P.sliding) { P.sliding = false; P.slideT = 0; P.slideCd = CFG.slide.cooldown; } }   // ジャンプは滑走を打ち切る
     stepSlide(P, inp, dt);
-    if (!P.grounded) {
-      P.vy -= J.gravity * dt; P.y += P.vy * dt;
-      if (P.y <= 0) { P.y = 0; P.vy = 0; P.grounded = true; if (P.dive) { P.dive = false; slideStart(P); } }   // 急降下で着地したら、すぐ滑走
-    }
     if (P.slow > 0) {   // 直撃のあとしばらく遅い。最後の slowRamp 秒でなめらかに元の速さへ
       P.slow = Math.max(0, P.slow - dt);
       mul = P.slowF + (1 - P.slowF) * (1 - Math.min(1, P.slow / H.slowRamp));
@@ -139,5 +134,6 @@ function stepPlayer(P, inp, dt) {
   P.z = -P.dist;   // 前方は -z
 }
 
-// ジャンプの滞空時間と最高到達点（調整の目安）
-function jumpStats() { const J = CFG.jump; return { air: 2 * J.velocity / J.gravity, peak: J.velocity * J.velocity / (2 * J.gravity) }; }
+// 道の外の装飾（岩・丘・枯れ木など）の中心 x の最小値。装飾の横の半幅 ext の「道側のふち」が、走れる範囲（move.maxX）から gap 以上外に離れる。
+// 装飾はこれより内側に置かない＝レーンの上に絶対にかからない（高さ方向の張り出しも ext に含める）
+function decorMinX(ext, gap) { return CFG.move.maxX + gap + ext; }

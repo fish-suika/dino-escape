@@ -171,19 +171,13 @@ function sndStep(k) {
   sndBurst(c, SND.master, t, 0.07, 'lowpass', 700 + Math.random() * 300, 140, 0.16 * v, 0.7);
   sndTone(c, SND.master, t, 0.08, 'sine', 95 + Math.random() * 15, 48, 0.2 * v, 0.004);
 }
-// ジャンプ「ピョッ」：短く上がる音と風切り
-function sndJump() {
+// レーン移動「ザッ」：短い砂をこする音（移動の 0.13 秒に収まる長さ）
+function sndLane() {
   const c = SND.ctx; if (!c || c.state !== 'running') return;
-  const t = c.currentTime, v = CFG.sound.vol.jump;
-  sndTone(c, SND.master, t, 0.16, 'triangle', 240, 560, 0.18 * v, 0.012);
-  sndBurst(c, SND.master, t, 0.14, 'bandpass', 900, 2600, 0.06 * v, 0.9);
-}
-// 着地「ズサッ」：強さ 0〜1
-function sndLand(str) {
-  const c = SND.ctx; if (!c || c.state !== 'running') return;
-  const t = c.currentTime, v = CFG.sound.vol.land * (0.4 + 0.6 * str);
-  sndTone(c, SND.master, t, 0.16, 'sine', 120, 42, 0.36 * v, 0.004);
-  sndBurst(c, SND.master, t, 0.2, 'lowpass', 1500, 160, 0.26 * v, 0.7);
+  const t = c.currentTime, v = CFG.sound.vol.lane * (0.85 + Math.random() * 0.3);
+  sndBurst(c, SND.master, t, 0.11, 'bandpass', 2300, 900, 0.2 * v, 0.9);
+  sndBurst(c, SND.master, t + 0.01, 0.08, 'lowpass', 1100, 300, 0.12 * v, 0.7);
+  sndTone(c, SND.master, t, 0.07, 'sine', 130, 70, 0.1 * v, 0.004);
 }
 // くぐる「ズサッ」：砂をこする音（高めから低めへ落ちる風切りと、地面をこする低い音）
 function sndSlide() {

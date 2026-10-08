@@ -6,7 +6,7 @@ function check(name, cond, why) {
   if (!cond) { nNg++; const w = document.createElement('div'); w.className = 'why'; w.textContent = why || ''; d.appendChild(w); } else nOk++;
   $out.appendChild(d);
 }
-const NONE = { left: false, right: false, jump: false, slide: false };
+const NONE = { left: false, right: false, slide: false };
 function run(P, inp, sec, dt = 1 / 60) { const n = Math.round(sec / dt); for (let i = 0; i < n; i++) stepPlayer(P, i === 0 ? inp : NONE, dt); return P; }   // 入力は最初の 1 フレームだけ（押した瞬間）
 
 // 速度
@@ -40,7 +40,7 @@ check('速度は単調増加', (() => { let p = 0; for (let t = 0; t < 2000; t +
   check('左キー 1 回で左のレーンへ（それ以上は動かない）', Q.lane === 0 && Q.x === -W);
   const E = fresh(); run(E, { ...NONE, right: true }, 1); run(E, { ...NONE, right: true }, 1);
   check('右端のレーンでさらに右を押しても動かない・バッファも残らない', E.lane === 2 && E.x === W && !E.laneMove && E.laneBuf.length === 0);
-  const B2 = fresh(); run(B2, { left: true, right: true, jump: false, slide: false }, 0.5);
+  const B2 = fresh(); run(B2, { left: true, right: true, slide: false }, 0.5);
   check('左右同時押しは動かない', B2.x === 0 && B2.lane === 1);
   // 入力バッファ：移動中に来た入力を覚えて、終わったら順に実行
   const A = fresh(); A.lane = 0; A.x = -W; stepPlayer(A, { ...NONE, right: true }, F); stepPlayer(A, { ...NONE, right: true }, F);
@@ -57,35 +57,31 @@ check('速度は単調増加', (() => { let p = 0; for (let t = 0; t < 2000; t +
       check('バッファは bufferSec を過ぎると捨てられる（早すぎる入力は忘れ、終わり際の入力は実行）', X.lane === 1 && Y.lane === 2, X.lane + ' / ' + Y.lane);
     } finally { L.shiftSec = sh0; }
   })();
-  let lo = 9; const Z = fresh(); const seq = []; for (let i = 0; i < 600; i++) { stepPlayer(Z, { left: i % 7 === 0, right: i % 5 === 0 || i % 11 === 0, jump: i % 53 === 0, slide: i % 31 === 0 }, F); seq.push(Z.lane); if (Math.abs(Z.x) > W + 1e-9) lo = 0; }
+  let lo = 9; const Z = fresh(); const seq = []; for (let i = 0; i < 600; i++) { stepPlayer(Z, { left: i % 7 === 0, right: i % 5 === 0 || i % 11 === 0, slide: i % 31 === 0 }, F); seq.push(Z.lane); if (Math.abs(Z.x) > W + 1e-9) lo = 0; }
   check('入力を乱打しても、レーンは 0〜2 の範囲・x は両端のレーン中心を超えない', lo === 9 && seq.every(l => l >= 0 && l <= 2));
-  check('荒野の装飾を置かない半幅は、吹き飛びの左右限界 maxX（端のレーン中心より外）より広い', CFG.world.clearHalf > CFG.move.maxX && CFG.move.maxX > W);
-  const P4 = fresh(); stepPlayer(P4, { ...NONE, jump: true }, F); const y1 = P4.y; stepPlayer(P4, { ...NONE, right: true }, F); run(P4, NONE, 0.15);
-  check('空中でもレーン移動できる（ジャンプ中に押すと隣のレーンへ）', y1 > 0 && P4.lane === 2 && P4.x === W);
+  check('装飾の置き方：道側のふちは走れる範囲 maxX の外に余裕（decorGap / vergeGap）をとる（大きさによらず中心 x の最小値で保証）', CFG.world.decorGap > 2 && CFG.world.vergeGap > 1 && [0, 0.5, 4.5, 30].every(e => Math.abs(decorMinX(e, CFG.world.decorGap) - e - (CFG.move.maxX + CFG.world.decorGap)) < 1e-9) && decorMinX(1, CFG.world.vergeGap) - 1 > CFG.move.maxX && CFG.move.maxX > W);
+  (() => {   // ジャンプ廃止：jump 入力は無視される。y は 0 のまま・着地状態のまま・速さも変わらない
+    const J = fresh(), K = fresh(); let ok = true;
+    for (let i = 0; i < 120; i++) { stepPlayer(J, { ...NONE, jump: i % 7 === 0 }, F); stepPlayer(K, NONE, F); if (J.y !== 0 || J.vy !== 0 || !J.grounded) ok = false; }
+    check('ジャンプは廃止：jump 入力を何度送っても y = 0・vy = 0・接地のまま、走りも入力なしと同じ', ok && J.dist === K.dist && J.x === K.x && !J.sliding, 'y ' + J.y);
+    check('ジャンプ関連の調整値と関数は無い（CFG.jump / jumpStats / slide.dive）', typeof CFG.jump === 'undefined' && typeof jumpStats === 'undefined' && CFG.slide.dive === undefined && CFG.hit.maxY === undefined && CFG.cam.jumpLift === undefined);
+  })();
   const P5 = fresh(); run(P5, { ...NONE, right: true }, 1); const d1 = P5.dist, Q5 = fresh(); run(Q5, NONE, 1);
   check('レーン移動中も前進速度は変わらない', Math.abs(d1 - Q5.dist) < 1e-9);
 })();
 
-// ジャンプ
+// 走り（ジャンプ廃止）
 (() => {
-  const P = newPlayer(); stepPlayer(P, { ...NONE, jump: true }, 1 / 60);
-  check('地上で Space → 上昇開始', !P.grounded && P.y > 0 && P.vy > 0);
-  const js = jumpStats(); let peak = 0, t = 0; while (!P.grounded && t < 5) { stepPlayer(P, NONE, 1 / 60); peak = Math.max(peak, P.y); t += 1 / 60; }
-  check('必ず着地する', P.grounded && P.y === 0 && P.vy === 0);
-  check('最高到達点が理論値に近い', Math.abs(peak - js.peak) < 0.3, 'peak ' + peak + ' / ' + js.peak);
-  check('滞空時間が理論値に近い', Math.abs(t - js.air) < 0.1, 't ' + t + ' / ' + js.air);
-  check('最高点は障害物を越えられそうな高さ（1.5〜5）', js.peak > 1.5 && js.peak < 5, 'peak ' + js.peak);
-  const Q = newPlayer(); stepPlayer(Q, { ...NONE, jump: true }, 1 / 60); run(Q, NONE, 0.1); const vy = Q.vy; stepPlayer(Q, { ...NONE, jump: true }, 1 / 60);
-  check('空中では二段ジャンプしない（vy は重力で減るだけ）', Q.vy < vy);
   const R = newPlayer(); run(R, NONE, 0.5);
-  check('ジャンプしなければ y = 0 のまま', R.y === 0 && R.grounded);
-  const T = newPlayer(); run(T, NONE, 1); const d1 = T.dist; const U = newPlayer(); stepPlayer(U, { ...NONE, jump: true }, 1 / 60); run(U, NONE, 1 - 1 / 60);
-  check('ジャンプ中も前進速度は変わらない', Math.abs(U.dist - d1) < 1e-6);
+  check('何もしなければ y = 0・接地のまま', R.y === 0 && R.grounded && R.vy === 0);
+  const Q = newPlayer(); run(Q, { ...NONE, slide: true }, 0.3);
+  check('くぐる中も y = 0（地面を滑る）', Q.sliding && Q.y === 0 && Q.grounded);
 })();
+
 
 // くぐる（スライド）
 (() => {
-  const S = CFG.slide, F = 1 / 60, jp = jumpStats();
+  const S = CFG.slide, F = 1 / 60;
   const P = newPlayer(); stepPlayer(P, { ...NONE, slide: true }, F);
   check('スライド：地上で押すと滑走が始まり、当たり判定の高さが低くなる', P.sliding && playerHeight(P) === S.slideH && S.slideH < S.standH && !newPlayer().sliding && playerHeight(newPlayer()) === S.standH);
   let t = F; while (P.sliding && t < 3) { stepPlayer(P, NONE, F); t += F; }
@@ -93,20 +89,13 @@ check('速度は単調増加', (() => { let p = 0; for (let t = 0; t < 2000; t +
   check('スライド：終わった直後はクールダウン（slideCd）', Math.abs(P.slideCd - S.cooldown) < 2 * F);
   check('スライド：クールダウン明けに押せばまた滑れる', (() => { const X = newPlayer(); stepPlayer(X, { ...NONE, slide: true }, F); run(X, NONE, S.sec + S.cooldown + 0.1); stepPlayer(X, { ...NONE, slide: true }, F); return X.sliding; })());
   check('スライド：早押し（明ける直前に押す）は覚えていて、明けた瞬間に始まる', (() => { const X = newPlayer(); stepPlayer(X, { ...NONE, slide: true }, F); run(X, NONE, S.sec + F); run(X, NONE, S.cooldown - 0.1); stepPlayer(X, { ...NONE, slide: true }, F); const was = X.sliding; run(X, NONE, 0.15); return !was && X.sliding; })());
-  const J = newPlayer(); stepPlayer(J, { ...NONE, slide: true }, F); run(J, NONE, 0.2); stepPlayer(J, { ...NONE, jump: true }, F);
-  check('スライド：滑走中にジャンプすると滑走をやめて跳べる', !J.sliding && !J.grounded && J.vy > 0);
-  const D = newPlayer(); stepPlayer(D, { ...NONE, jump: true }, F); run(D, NONE, 0.2); const y0 = D.y; stepPlayer(D, { ...NONE, slide: true }, F);
-  check('スライド：空中で押すと急降下する（落下速度が dive 以上）', y0 > 0.5 && D.vy <= -S.dive + 1 && D.dive, 'vy ' + D.vy);
-  let td = 0; while (!D.grounded && td < 2) { stepPlayer(D, NONE, F); td += F; }
-  const normal = newPlayer(); stepPlayer(normal, { ...NONE, jump: true }, F); run(normal, NONE, 0.2); let tn = 0; while (!normal.grounded && tn < 2) { stepPlayer(normal, NONE, F); tn += F; }
-  check('スライド：急降下は普通の着地より早く、着地したらすぐ滑走が始まる', td < tn && D.sliding && !D.dive && D.slideT > S.sec - 0.05, td + ' vs ' + tn);
   const T = newPlayer(); run(T, NONE, 1); const U = newPlayer(); stepPlayer(U, { ...NONE, slide: true }, F); run(U, NONE, 1 - F);
   check('スライド：前進速度は変わらない', Math.abs(T.dist - U.dist) < 1e-9);
   const K = newPlayer(); stepPlayer(K, { ...NONE, slide: true }, F); knockPlayer(K, 0, 0, 'mid');
   check('スライド：吹き飛ばされたら滑走は終わる', !K.sliding && K.slideT === 0);
   const M = newPlayer(); stepPlayer(M, { ...NONE, slide: true }, F); stepPlayer(M, { ...NONE, right: true }, F); run(M, NONE, 0.2);
   check('スライド：滑走中もレーン移動できる', M.lane === 2 && M.sliding);
-  check('スライド：高さの設計（梁の下端 > 滑走の高さ / 梁の下端 < 立ちの高さ / 梁の上端 > ジャンプ頂点）', CFG.obstacle.arch.clear > S.slideH + 0.3 && CFG.obstacle.arch.clear < S.standH - 0.5 && CFG.obstacle.arch.clear + CFG.obstacle.arch.beamH > jp.peak + 0.3, JSON.stringify({ c: CFG.obstacle.arch.clear, peak: jp.peak }));
+  check('スライド：高さの設計（梁の下端 > 滑走の高さ / 梁の下端 < 立ちの高さ）', CFG.obstacle.arch.clear > S.slideH + 0.3 && CFG.obstacle.arch.clear < S.standH - 0.5, JSON.stringify({ c: CFG.obstacle.arch.clear }));
 })();
 
 // dt 非依存（フレームレートが違っても距離がほぼ同じ）
@@ -145,8 +134,7 @@ function runUntil(P, inp, fn, maxSec) { let t = 0; while (!fn(P) && t < maxSec) 
   check('着弾半径内・地上なら直撃判定', rockHitsPlayer(P, P.x + 1, P.z, RK.sizes.mid.radius));
   check('着弾半径の外なら当たらない', !rockHitsPlayer(P, P.x + RK.sizes.mid.radius + H.dinoR + 0.5, P.z, RK.sizes.mid.radius));
   check('前後方向に離れていても当たらない', !rockHitsPlayer(P, P.x, P.z - 20, RK.sizes.large.radius));
-  const J = newPlayer(); stepPlayer(J, { ...NONE, jump: true }, STEP); run(J, NONE, 0.3);
-  check('高く跳んでいれば爆風の上を越える（y ≥ maxY）', J.y >= H.maxY && !rockHitsPlayer(J, J.x, J.z, RK.sizes.large.radius), 'y ' + J.y);
+  check('噴石の判定は高さに関係ない：y がいくつでも（スライド中でも）着弾半径内なら直撃', [0, 0.5, 1.5, 3, 8].every(y => { const A = newPlayer(); run(A, NONE, 0.5); A.y = y; return rockHitsPlayer(A, A.x, A.z, RK.sizes.large.radius); }) && (() => { const A = newPlayer(); run(A, { ...NONE, slide: true }, 0.2); return A.sliding && rockHitsPlayer(A, A.x + 1, A.z, RK.sizes.small.radius); })());
   const Q = newPlayer(); run(Q, NONE, 0.5);
   check('地上スレスレの着弾（半径ぎりぎり内）は当たる', rockHitsPlayer(Q, Q.x + RK.sizes.small.radius + H.dinoR - 0.05, Q.z, RK.sizes.small.radius));
 })();
@@ -160,8 +148,8 @@ function runUntil(P, inp, fn, maxSec) { let t = 0; while (!fn(P) && t < maxSec) 
   check('前方にも飛ぶ（吹き飛び中も距離が増える）', P.kvf > 0);
   const A = newPlayer(); run(A, NONE, 1); knockPlayer(A, A.x, A.z, 'mid');
   const B = newPlayer(); run(B, NONE, 1); knockPlayer(B, B.x, B.z, 'mid');
-  for (let i = 0; i < 30; i++) { stepPlayer(A, { left: true, right: false, jump: i === 3 }, STEP); stepPlayer(B, NONE, STEP); }
-  check('knocked 中は左右入力・ジャンプを無視（入力ありでも結果が同じ）', Math.abs(A.x - B.x) < 1e-9 && Math.abs(A.y - B.y) < 1e-9 && A.state === 'knocked');
+  for (let i = 0; i < 30; i++) { stepPlayer(A, { left: true, right: false }, STEP); stepPlayer(B, NONE, STEP); }
+  check('knocked 中は左右入力を無視（入力ありでも結果が同じ）', Math.abs(A.x - B.x) < 1e-9 && Math.abs(A.y - B.y) < 1e-9 && A.state === 'knocked');
   const seq = []; let prev = ''; const C = newPlayer(); run(C, NONE, 1); knockPlayer(C, C.x, C.z, 'mid');
   let maxY = 0, bounced = false, landedOnce = false, tt = 0, wasAir = false, minX = 9, maxXv = -9, nan = false;
   while (tt < 8 && !(C.state === 'run' && C.invuln > 0)) { stepPlayer(C, NONE, STEP); tt += STEP; if (C.state !== prev) { seq.push(C.state); prev = C.state; }
@@ -176,8 +164,8 @@ function runUntil(P, inp, fn, maxSec) { let t = 0; while (!fn(P) && t < maxSec) 
   check('復帰後すぐ無敵時間（invuln = invulnSec）', Math.abs(C.invuln - H.invulnSec) < 0.05);
   const x1 = C.x, l1 = C.lane; run(C, { ...NONE, left: l1 > 0, right: l1 === 0 }, 0.3);
   check('起き上がり後は再び左右入力が効く（一番近いレーンから隣のレーンへ）', Math.abs(C.x - x1) > 0.1 && C.lane !== l1 && C.state === 'run' && (C.x === laneX(C.lane) || C.laneMove));
-  const D = newPlayer(); knockPlayer(D, 0, 0, 'mid'); runUntil(D, NONE, p => p.state === 'run', 6); stepPlayer(D, { ...NONE, jump: true }, STEP);
-  check('起き上がり後は再びジャンプできる', !D.grounded && D.vy > 0);
+  const D = newPlayer(); knockPlayer(D, 0, 0, 'mid'); runUntil(D, NONE, p => p.state === 'run', 6); stepPlayer(D, { ...NONE, slide: true }, STEP);
+  check('起き上がり後は再びくぐれる（ジャンプは無い）', D.sliding && D.grounded && D.y === 0 && D.vy === 0);
   const E = newPlayer(), F = newPlayer(); run(E, NONE, 1); run(F, NONE, 1); knockPlayer(F, F.x, F.z, 'mid'); const d0 = F.dist, e0 = E.dist; run(E, NONE, 1); run(F, NONE, 1);
   check('吹き飛び中も前には進むが、通常より遅い', F.dist - d0 > 0 && (F.dist - d0) < (E.dist - e0) - 0.5, (F.dist - d0) + ' vs ' + (E.dist - e0));
   check('P.z = -dist は吹き飛び中も保たれる', Math.abs(F.z + F.dist) < 1e-9);
@@ -299,7 +287,7 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
 
 // ===== マグマ・ゲームオーバー =====
 (() => {
-  const MC = CFG.magma, DT = 1 / 60, NOI = { left: false, right: false, jump: false };
+  const MC = CFG.magma, DT = 1 / 60, NOI = { left: false, right: false };
   const quiet = () => { const G = newGame(); G.RS.timer = 1e9; G.OB.off = true; return G; };   // 噴石が出ない設定（マグマだけを見る）
   const go = (G, sec, inp) => { for (let i = 0, n = Math.round(sec / DT); i < n; i++) stepGame(G, inp || NOI, DT); return G; };
 
@@ -347,16 +335,15 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   check('立て続けに被弾し続けるとマグマに追いつかれる', burst.dead, 'hits ' + burst.hits + ' time ' + burst.time);
   window.__burst = burst;
 
-  // 接触：ジャンプ中でも関係なし
-  const J = quiet(); go(J, 6); stepGame(J, { ...NOI, jump: true }, DT); go(J, 0.1);
-  check('ジャンプ中（空中）に先端が届いてもゲームオーバー', (() => { const Y = quiet(); go(Y, 6); stepGame(Y, { ...NOI, jump: true }, DT); const air = !Y.P.grounded && Y.P.y > 0; Y.M.front = Y.P.dist + 1; const ev = stepGame(Y, NOI, DT); return air && ev.died && Y.M.phase === 'dead'; })());
+  // 接触：吹き飛ばされて空中にいる間でも、先端が届けばゲームオーバー
+  check('吹き飛ばされて空中にいる間に先端が届いてもゲームオーバー', (() => { const Y = quiet(); go(Y, 6); knockPlayer(Y.P, Y.P.x, Y.P.z, 'mid'); stepGame(Y, NOI, DT); const air = !Y.P.grounded && Y.P.y > 0; Y.M.front = Y.P.dist + 1; const ev = stepGame(Y, NOI, DT); return air && ev.died && Y.M.phase === 'dead'; })());
   check('接触でそのフレームの ev.died が true・状態が dead になる', (() => { const Y = quiet(); go(Y, 6); Y.M.front = Y.P.dist + 1; const ev = stepGame(Y, NOI, DT); return ev.died === true && Y.P.state === 'dead' && Y.M.phase === 'dead'; })());
 
   // dead 中は止まる
   const D = quiet(); go(D, 6); D.M.front = D.P.dist + 1; stepGame(D, NOI, DT);
   spawnRock(D.RS, 'small', 5, D.P.z - 30, lcg(1)); D.RS.timer = 0;
   const snap = { dist: D.P.dist, z: D.P.z, x: D.P.x, time: D.P.time, y: D.P.y };
-  let spawned = 0; for (let i = 0; i < 600; i++) { const ev = stepGame(D, { left: true, right: false, jump: i === 5 }, DT); spawned += ev.spawned.length; }
+  let spawned = 0; for (let i = 0; i < 600; i++) { const ev = stepGame(D, { left: true, right: false }, DT); spawned += ev.spawned.length; }
   check('dead 中は前進しない（dist・z・time が動かない）', D.P.dist === snap.dist && D.P.z === snap.z && D.P.time === snap.time);
   check('dead 中は操作を受け付けない（左入力・ジャンプでも x/y が動かない）', D.P.x === snap.x && D.P.y === snap.y && D.P.state === 'dead');
   check('dead 中は噴石が新しく出ない（タイマーが 0 でも）', spawned === 0 && D.RS.rocks.length === 0, 'spawned ' + spawned);
@@ -383,103 +370,126 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
 })();
 
 
-// ===== Phase 5：障害物（配置・衝突・リセット） =====
+// ===== Phase 5：障害物（配置・衝突・リセット）。ジャンプ廃止後：地上の障害物はレーンを変えて避け、アーチはくぐる =====
 (() => {
-  const O = CFG.obstacle, DT = 1 / 60, MX = CFG.move.maxX, peak = jumpStats().peak;
-  const NOI = { left: false, right: false, jump: false, slide: false };
+  const O = CFG.obstacle, DT = 1 / 60, MX = CFG.move.maxX, LN = CFG.lane, g = O.gap;
+  const NOI = { left: false, right: false, slide: false };
   const mkOb = (type, o) => Object.assign({
     rock: { type: 'rock', x: 0, z: -60, r: 1.2, h: 1.4, hw: 1.02, hd: 1.02 },
-    log: { type: 'log', x: 0, z: -60, len: 20, h: O.log.h, hw: 10, hd: O.log.r, r: O.log.r },
-    crater: { type: 'crater', x: 0, z: -60, r: 2, h: O.crater.clearY, hw: 2, hd: 2 },
-    pool: { type: 'pool', x: 0, z: -60, r: 3, h: O.pool.clearY, hw: 3, hd: 3 },
-    arch: { type: 'arch', x: 0, z: -60, hw: CFG.lane.width / 2 - O.arch.inset, hd: O.arch.hd, r: O.arch.hd, h: O.arch.clear, clear: O.arch.clear, top: O.arch.clear + O.arch.beamH } }[type], { id: 1, hit: false }, o);
-  // 障害物 1 個だけを置いて走る。jumpAtDz = 障害物まであと何 u になったらジャンプするか（null＝跳ばない）
-  function trial(type, jumpAtDz, o, x0, slideAtDz) {   // x0 = 障害物の左右のずれ（プレイヤーは中央レーン）/ slideAtDz = あと何 u でくぐるか
+    log: { type: 'log', x: 0, z: -60, len: O.log.len, h: O.log.r * 2, hw: O.log.len / 2, hd: O.log.r, r: O.log.r },
+    crater: { type: 'crater', x: 0, z: -60, r: 2, h: 0, hw: 2, hd: 2 },
+    pool: { type: 'pool', x: 0, z: -60, r: 3, h: 0, hw: 3, hd: 3 },
+    arch: { type: 'arch', x: 0, z: -60, hw: CFG.lane.width / 2 - O.arch.inset, hd: O.arch.hd, r: O.arch.hd, h: O.arch.clear, clear: O.arch.clear, top: O.arch.clear + O.arch.beamH } }[type], { id: 1, hit: false, lanes: [1] }, o);
+  // 障害物 1 個だけを置いて走る（プレイヤーは中央レーン）。x0 = 障害物の左右のずれ / slideAtDz = あと何 u でくぐるか / laneAtDz = あと何 u で右のレーンへ移るか（null なら動かない）
+  function trial(type, o, x0, slideAtDz, laneAtDz) {
     const P = newPlayer(), OB = newObstacles(); OB.genDist = 1e9; const ob = mkOb(type, o); if (x0 != null) ob.x = x0; OB.list.push(ob);
-    let jumped = false, slid = false; const hits = [];
+    let slid = false, moved = false; const hits = [];
     for (let i = 0; i < 900; i++) {
-      const jump = !jumped && jumpAtDz != null && P.z - ob.z <= jumpAtDz; if (jump) jumped = true;
       const slide = !slid && slideAtDz != null && P.z - ob.z <= slideAtDz; if (slide) slid = true;
-      stepPlayer(P, { left: false, right: false, jump, slide }, DT); hits.push(...stepObstacles(OB, P, DT).hits);
+      const right = !moved && laneAtDz != null && P.z - ob.z <= laneAtDz; if (right) moved = true;
+      stepPlayer(P, { left: false, right, slide }, DT); hits.push(...stepObstacles(OB, P, DT).hits);
       if (P.z < ob.z - 40 && P.state === 'run') break;
     }
     return { P, OB, hits, ob };
   }
-  const clearRange = (type, o) => { let n = 0, first = -1, last = -1; for (let d = 0; d <= 26; d += 0.25) { if (!trial(type, d, o).hits.length) { n++; if (first < 0) first = d; last = d; } } return { n, first, last }; };
+  // 実際に触れるレーン（その中心に立った恐竜が触れるか）
+  const touches = (ob, l) => { const dx = Math.abs(laneX(l) - ob.x); return ob.type === 'rock' || ob.type === 'log' ? dx < ob.hw + O.dinoR : ob.type === 'arch' ? dx < ob.hw + O.dinoR : dx < ob.r + (ob.type === 'pool' ? O.dinoR : O.dinoR * 0.3); };
 
   // --- 配置 ---
   const A = planObstacles(O.seed, 0, -2000, 0), B = planObstacles(O.seed, 0, -2000, 0), C2 = planObstacles(O.seed + 1, 0, -2000, 0);
   check('配置：同じ seed なら同じ結果（再現できる）', A.length > 10 && JSON.stringify(A) === JSON.stringify(B));
   check('配置：seed が違えば別の配置になる', JSON.stringify(A) !== JSON.stringify(C2));
-  check('配置：チャンクに分けて作っても一括と同じ（chunk ごと）', (() => { const parts = []; for (let d = 0; d < 2000; d += O.chunk) parts.push(...planObstacles(O.seed, -d, -(d + O.chunk), 0)); return JSON.stringify(parts) === JSON.stringify(A); })());
-  check('配置：z は前方（負）で、距離順に並ぶ', A.every((o, i) => o.z < 0 && o.z === -o.dist && (i === 0 || o.dist > A[i - 1].dist)));
-  let minGap = 1e9, minLog = 1e9, bandOverlap = 0, badLane = 0, freeBad = 0, archEarly = 0, archGapBad = 0, archLanes = { 1: 0, 2: 0 }, laneUse = [0, 0, 0], tooHigh = 0, early = 0, craterEarly = 0, logEarly = 0, poolEarly = 0, nTot = 0, nEarly = 0, nLate = 0;
-  const counts = { rock: 0, log: 0, crater: 0, pool: 0, arch: 0 };
-  for (let seed = 1; seed <= 300; seed++) {
-    const L = planObstacles(seed, 0, -3000, 0);
-    for (let i = 0; i < L.length; i++) {
-      const o = L[i]; nTot++; counts[o.type]++;
+  check('配置：チャンクに分けて作っても、先に遠くまで作っておいても、一括と同じ（chunk ごと）', (() => { const parts = []; for (let d = 0; d < 2000; d += O.chunk) parts.push(...planObstacles(O.seed, -d, -(d + O.chunk), 0)); obGen(O.seed + 5, 0); planObstacles(O.seed + 5, -3000, -3100, 0); const e1 = planObstacles(O.seed + 5, 0, -2000, 0); obGenClear(); const e2 = planObstacles(O.seed + 5, 0, -2000, 0); return JSON.stringify(parts) === JSON.stringify(A) && JSON.stringify(e1) === JSON.stringify(e2); })());
+  check('配置：取り出した障害物を書き換えても次の取り出しに影響しない（コピーを返す）', (() => { const a = planObstacles(O.seed, 0, -400, 0); a.forEach(o => { o.hit = true; o.id = 99; o.lanes.push(7); }); return planObstacles(O.seed, 0, -400, 0).every(o => !o.hit && o.id === undefined && o.lanes.indexOf(7) < 0); })());
+  check('配置：z は前方（負）で、距離順に並ぶ', A.every((o, i) => o.z < 0 && o.z === -o.dist && (i === 0 || o.dist >= A[i - 1].dist)));
+  let nTot = 0, early = 0, craterEarly = 0, logEarly = 0, poolEarly = 0, archEarly = 0, pairEarly = 0, pairs = 0, rowsN = 0, noPass = 0, wrongLane = 0, wideLog = 0, tooMany = 0, gapBad = 0, archGapBad = 0, orderBad = 0, routeFail = 0, robustFail = 0, dpFail = 0, minSlack = 1e9;
+  const counts = { rock: 0, log: 0, crater: 0, pool: 0, arch: 0 }, laneUse = [0, 0, 0], archLanes = { 1: 0, 2: 0 };
+  let rowsEarly = 0, rowsLate = 0;
+  const SEEDS = 400, LEN = 4000;
+  for (let seed = 1; seed <= SEEDS; seed++) {
+    const list = planObstacles(seed, 0, -LEN, 0), rows = obRows(seed, LEN, 0).filter(r => r.dist < LEN);
+    // (a) 生成器の行の整合
+    const rc = obRouteCheck(rows); if (!rc.ok) routeFail++; if (!rc.robust) robustFail++; minSlack = Math.min(minSlack, rc.minSlack);
+    // (b) 取り出した障害物だけから、行を独立に作り直して確認する（生成器の内部表現を信用しない）
+    const byDist = new Map(); for (const o of list) { if (!byDist.has(o.dist)) byDist.set(o.dist, []); byDist.get(o.dist).push(o); }
+    const rs = [...byDist.entries()].sort((a, b) => a[0] - b[0]).map(([d, obs]) => {
+      const ext = Math.max(...obs.map(obExtent)), pass = [0, 1, 2].filter(l => !obs.some(o => o.type !== 'arch' && touches(o, l)));
+      return { d, obs, ext, start: d - ext, end: d + ext, pass, arch: obs.some(o => o.type === 'arch') };
+    });
+    let S = null;
+    for (let i = 0; i < rs.length; i++) {
+      const r = rs[i], prev = rs[i - 1]; rowsN++;
+      if (!r.pass.length) noPass++;
+      const grounds = r.obs.filter(o => o.type !== 'arch');
+      if (grounds.length > LN.count - 1 || grounds.length > 2) tooMany++;
+      if (r.arch && r.obs.length !== 1) tooMany++;
+      if (r.d < 500) rowsEarly++; else if (r.d >= 3000) rowsLate++;
+      if (grounds.length === 2) { pairs++; if (r.d < O.startDist + O.pair.from) pairEarly++; }
+      if (!prev) S = r.pass.slice();
+      else {
+        if (r.start <= prev.end) orderBad++;
+        const T = (r.start - prev.end) / obSpeedAt(r.start), need = (a, b) => a === b ? 0 : Math.abs(a - b) * LN.shiftSec + g.react;
+        for (const a of prev.pass) { let ok = false; for (const b of r.pass) if (T >= need(a, b) - 1e-9) ok = true; if (!ok) gapBad++; }
+        if (T < g.min - 1e-9) gapBad++;
+        if ((r.arch || prev.arch) && T < g.archSec - 1e-9) archGapBad++;
+        S = r.pass.filter(b => S.some(a => T >= need(a, b) - 1e-9));
+        if (!S.length) dpFail++;
+      }
+    }
+    for (const o of list) {
+      nTot++; counts[o.type]++;
       if (o.dist < O.startDist) early++;
       if (o.type === 'crater' && o.dist < O.startDist + O.unlock.crater) craterEarly++;
       if (o.type === 'log' && o.dist < O.startDist + O.unlock.log) logEarly++;
       if (o.type === 'pool' && o.dist < O.startDist + O.unlock.pool) poolEarly++;
-      if (o.dist < 500) nEarly++; else if (o.dist >= 2500) nLate++;
-      if (i > 0) {
-        const p = L[i - 1]; minGap = Math.min(minGap, o.dist - p.dist);
-        if (o.dist - p.dist < p.hd + o.hd + 1) bandOverlap++;   // 前後の幅が重なる＝同じ z 帯
-      }
-      if (o.type === 'log') for (let j = 0; j < L.length; j++) if (j !== i) minLog = Math.min(minLog, Math.abs(L[j].dist - o.dist));
-      {   // レーン単位の配置：占有は 1〜2 レーン（倒木・アーチ以外は 1）、中心は占有レーンの中心、隣の占有していないレーンに必ず逃げ道（体が触れない）がある
-        const lw = CFG.lane.width, ok1 = o.lanes.length >= 1 && o.lanes.length <= 2 && o.lanes.every((l, j) => l >= 0 && l < CFG.lane.count && (j === 0 || l === o.lanes[j - 1] + 1));
-        const ctr = o.lanes.reduce((s, l) => s + laneX(l), 0) / o.lanes.length, onePerType = (o.type === 'rock' || o.type === 'crater' || o.type === 'pool') ? o.lanes.length === 1 : true;
-        if (!ok1 || Math.abs(ctr - o.x) > 1e-9 || !onePerType) badLane++;
-        const ext = (o.type === 'crater' || o.type === 'pool') ? o.r + (o.type === 'pool' ? O.dinoR : O.dinoR * 0.3) : o.hw + O.dinoR;
-        let free = 0; for (let l = 0; l < CFG.lane.count; l++) if (o.lanes.indexOf(l) < 0 && Math.abs(laneX(l) - o.x) > ext + 0.3) free++;
-        if (free < 1) freeBad++;
+      if (o.type === 'arch') { archLanes[o.lanes.length]++; if (o.dist < O.startDist + O.unlock.arch) archEarly++; }
+      else {
+        const t = [0, 1, 2].filter(l => touches(o, l));
+        if (o.lanes.length !== 1 || t.length !== 1 || t[0] !== o.lanes[0] || Math.abs(laneX(o.lanes[0]) - o.x) > 1e-9) wrongLane++;   // 地上の障害物は 1 レーンだけに触れる（倒木も）
         if (o.type === 'rock') laneUse[o.lanes[0]]++;
-        if (o.type === 'arch') { archLanes[o.lanes.length]++; if (o.dist < O.startDist + O.unlock.arch) archEarly++; }
-        if (i > 0 && (o.type === 'arch' || L[i - 1].type === 'arch') && o.dist - L[i - 1].dist < O.arch.gapZ * speedScaleAtDist(L[i - 1].dist) - 1e-9) archGapBad++;
+        if (o.type === 'log' && (o.len >= LN.width || o.hw + O.dinoR >= LN.width / 2 + 0.6)) wideLog++;
       }
-      if ((o.type === 'rock' || o.type === 'log') && o.h > peak - 0.3) tooHigh++;
     }
   }
-  check('配置：300 seed × 3000u で多数生成される', nTot > 12000, 'n ' + nTot);
-  check('配置：障害物どうしの前後間隔は常に minGapZ 以上（全 seed）', minGap >= O.minGapZ - 1e-9, 'min ' + minGap);
-  check('配置：同じ z 帯（前後の幅が重なる位置）に 2 個並ばない', bandOverlap === 0, 'overlap ' + bandOverlap);
-  check('配置：倒木の前後 logClearZ 以内に他の障害物がない', minLog >= O.logClearZ - 1e-9, 'min ' + minLog);
-  check('配置：レーン単位（占有は 1〜2 レーン連続・岩/クレーター/溜まりは 1 レーン・中心は占有レーンの中心。全 seed）', badLane === 0, 'bad ' + badLane);
-  check('配置：どの障害物にも、体が触れずに通れる別のレーンが 1 つ以上ある（全 seed。ジャンプなしで通れる列の確保）', freeBad === 0, 'bad ' + freeBad);
+  check('配置：' + SEEDS + ' seed × ' + LEN + 'u で多数生成される', nTot > 12000, 'n ' + nTot);
+  check('配置：どの行にも、通れるレーン（地上の障害物が体に触れない、またはアーチだけのレーン）が 1 本以上残る（全 seed・取り出した障害物から独立に確認）', noPass === 0 && rowsN > 8000, 'noPass ' + noPass + ' rows ' + rowsN);
+  check('配置：1 行で塞ぐ地上の障害物は最大 2 つ（3 レーンすべては塞がない）。アーチの行にはアーチ以外を置かない', tooMany === 0);
+  check('配置：地上の障害物（岩・倒木・クレーター・溜まり）は 1 レーンだけに触れる（倒木も 1 レーン幅。隣のレーン中心に立っても触れない）', wrongLane === 0 && wideLog === 0 && O.log.len < LN.width, 'wrong ' + wrongLane + ' wide ' + wideLog);
+  check('配置：【経路保証】全 seed で、各行の通れるレーンの集合から、レーン移動の時間（1 レーン shiftSec＋反応時間）を考えて最後まで到達できる経路が存在する', routeFail === 0 && dpFail === 0, 'routeFail ' + routeFail + ' dpFail ' + dpFail);
+  check('配置：【行き止まり無し】どの通れるレーンにいても、次の行の通れるレーンへ間に合う（全 seed。1 レーン移動 ' + LN.shiftSec + ' 秒＋反応 ' + g.react + ' 秒、2 レーン先は倍の移動時間）', robustFail === 0 && gapBad === 0, 'robustFail ' + robustFail + ' gapBad ' + gapBad + ' minSlack ' + minSlack.toFixed(3));
+  check('配置：行どうしの間隔は常に正で（窓が重ならない）、最低 g.min 秒', orderBad === 0 && g.min >= 0.4 && g.react >= 0.2);
+  check('配置：アーチの前後 archSec 秒以内に他の行を置かない（滑走が終わる前に次を避けられる並びにする。全 seed）', archGapBad === 0 && g.archSec >= O.arch.hd * 2 / CFG.run.baseSpeed + CFG.slide.sec, 'bad ' + archGapBad);
+  check('配置：2 レーン塞ぐ行（残り 1 レーン）が出る。出始めは pair.from より後', pairs > 300 && pairEarly === 0, 'pairs ' + pairs + ' early ' + pairEarly);
   check('配置：岩は 3 つのレーンすべてに置かれる', laneUse.every(n => n > 200), JSON.stringify(laneUse));
   check('配置：アーチは 1 レーン・2 レーン両方あり、解禁距離（90）より前には出ない', archLanes[1] > 100 && archLanes[2] > 100 && archEarly === 0 && O.startDist + O.unlock.arch >= 80 && O.startDist + O.unlock.arch <= 100, JSON.stringify(archLanes) + ' early ' + archEarly);
-  check('配置：アーチの前後 arch.gapZ（速度で広がる）以内に他の障害物を置かない（滑走が終わる前に着地できない並びを避ける。全 seed）', archGapBad === 0 && O.arch.gapZ >= O.minGapZ, 'bad ' + archGapBad);
-  check('配置：岩・倒木の高さはジャンプの頂点より十分低い（跳べば越えられる）', tooHigh === 0 && O.rock.hMax < peak - 0.3 && O.log.h < peak - 0.3);
-  check('配置：クレーター半径 1.5〜2.5、溜まり半径 2〜3.3（隣のレーン中心に当たり円が届かない）、倒木の長さは 1 レーン分・2 レーン分、アーチの梁は幅 1〜2 レーン', A.every(o => o.type === 'crater' ? o.r >= 1.5 && o.r <= 2.5 : o.type === 'pool' ? o.r >= 2 && o.r <= 3.3 && o.r + O.dinoR < CFG.lane.width : o.type === 'log' ? Math.abs(o.len - (o.lanes.length * CFG.lane.width - O.log.trim)) < 1e-9 : o.type === 'arch' ? Math.abs(o.hw - (o.lanes.length * CFG.lane.width / 2 - O.arch.inset)) < 1e-9 : true));
+  check('配置：クレーター半径 1.5〜2.5、溜まり半径 2〜3.3（隣のレーン中心に当たり円が届かない）、倒木は短い丸太（1 レーン）、アーチの梁は幅 1〜2 レーン', A.every(o => o.type === 'crater' ? o.r >= 1.5 && o.r <= 2.5 : o.type === 'pool' ? o.r >= 2 && o.r <= 3.3 && o.r + O.dinoR < CFG.lane.width : o.type === 'log' ? o.len === O.log.len && o.lanes.length === 1 : o.type === 'arch' ? o.lanes.length >= 1 && o.lanes.length <= 2 && Math.abs(o.hw - (o.lanes.length * CFG.lane.width / 2 - O.arch.inset)) < 1e-9 : true));
+  check('配置：どの障害物にも有効な種類（rock / log / crater / pool / arch）が付いている（全 seed の最初の行も）', A.every(o => counts[o.type] !== undefined) && Object.values(counts).every(Number.isFinite) && counts.rock > 0);
   check('配置：5 種類すべてが出る', counts.rock > 0 && counts.log > 0 && counts.crater > 0 && counts.pool > 0 && counts.arch > 0, JSON.stringify(counts));
   check('配置：開始から startDist までは何も置かない（全 seed）', early === 0 && O.startDist >= 40 && O.startDist <= 60);
   check('配置：クレーター・倒木・溜まりは unlock 距離より前に出ない（少しずつ増える）', craterEarly === 0 && logEarly === 0 && poolEarly === 0);
-  check('配置：密度は距離とともに増える（終盤 > 序盤）', obDensity(3000) > obDensity(60) * 1.5 && obDensity(900) > obDensity(300), nEarly + ' / ' + nLate);
-  check('配置：序盤の密度は低い（500u までは 1 枠あたり 6 割以下）', nEarly / 300 / (450 / O.slotStep) < 0.62, '' + nEarly / 300 / (450 / O.slotStep));
-  check('配置：level を上げると密度が上がる', planObstacles(7, 0, -1000, 1).length >= planObstacles(7, 0, -1000, 0).length);
+  check('配置：時間あたりの密度は終盤ほど高い（終盤の行の数 ÷ 走る時間 が序盤の 1.6 倍以上）', (rowsLate / SEEDS / (nominalTime(4000) - nominalTime(3000))) > 1.6 * (rowsEarly / SEEDS / (nominalTime(500) - nominalTime(0))), rowsEarly + ' / ' + rowsLate);
+  check('配置：行の間隔（目安）は序盤 > 終盤で、終盤でも反応＋2 レーン移動の時間より長い', g.start > g.end * 1.8 && g.end * (1 - g.jitter) > 2 * (LN.shiftSec + g.moveExtra) + g.react, g.start + ' / ' + g.end);
+  check('配置：level を上げると密度が上がる（時間あたりの行が増える＝同じ距離に多く入る）', planObstacles(7, 0, -1000, 1).length >= planObstacles(7, 0, -1000, 0).length);
+  check('配置：行が速さに比例して広がる（高速でも「時間」の間隔は同じ）', [0, 500, 1000, 2000, 6000].every(d => { const rows = obRows(3, d + 800, 0).filter(r => r.dist > d); const p = rows.find((r, i) => i > 0 && !r.arch && !rows[i - 1].arch); if (!p) return true; const prev = rows[rows.indexOf(p) - 1]; return (p.start - prev.end) / obSpeedAt(p.start) >= g.min - 1e-9; }));
 
-  // --- 衝突：岩・倒木（正面から高さ不足で当たる＝転倒、ジャンプで越える） ---
+  // --- 衝突：岩・倒木（レーンを変えて避ける。そのまま当たると転倒）---
   for (const [type, name] of [['rock', '岩'], ['log', '倒木']]) {
-    const t0 = trial(type, null);
-    check(name + '：跳ばずに正面から当たると転倒する（trips=1・減速がかかる）', t0.hits.length === 1 && t0.hits[0].kind === 'trip' && t0.P.trips === 1 && t0.P.slowF < 1, '' + t0.hits.length);
+    const t0 = trial(type);
+    check(name + '：避けずに正面から当たると転倒する（trips=1・減速がかかる）', t0.hits.length === 1 && t0.hits[0].kind === 'trip' && t0.P.trips === 1 && t0.P.slowF < 1, '' + t0.hits.length);
     check(name + '：転倒後は起き上がって run に戻る・噴石の hits は増えない', t0.P.state === 'run' && t0.P.hits === 0, t0.P.state);
-    const cr = clearRange(type);
-    check(name + '：ジャンプのタイミングが合えば越えられる（余裕のある幅）', cr.n >= 14, JSON.stringify(cr));
-    check(name + '：ジャンプが早すぎる／遅すぎると当たる', trial(type, 26).hits.length === 1 && trial(type, 0.3).hits.length === 1);
-    const side = trial(type, null, null, type === 'log' ? 12.5 : 3);
-    check(name + '：横に外れていれば当たらない', side.hits.length === 0 && side.P.state === 'run');
+    const ok = []; for (let d = 6; d <= 30; d += 2) ok.push(trial(type, null, null, null, d).hits.length === 0);
+    check(name + '：手前（6〜30u）で隣のレーンへ移れば当たらない。ぎりぎりまで引きつけると間に合わず当たる', ok.every(Boolean) && trial(type, null, null, null, 1).hits.length === 1, ok.join());
+    const side = trial(type, null, 4.5);
+    check(name + '：隣のレーンにあれば当たらない', side.hits.length === 0 && side.P.state === 'run');
   }
   (() => {
-    const t = trial('rock', null), T = O.trip;
+    const t = trial('rock'), T = O.trip;
     const knock = (() => { const P = newPlayer(); tripPlayer(P, T); return P; })(), k2 = (() => { const P = newPlayer(); knockPlayer(P, 0, 0, 'mid'); return P; })();
     check('転倒は噴石の吹き飛びより動きが小さい（滞空・前進の初速・跳ね上がりが小さく、横には飛ばない）', T.knock < CFG.hit.knockBase + CFG.hit.knockPer && knock.kvf < k2.kvf && knock.vy < k2.vy && knock.kvx === 0);
     check('転倒中は操作不能（knocked）→ recover → run の順に戻り、復帰後は無敵', (() => {
-      const P = newPlayer(); tripPlayer(P, T); const seen = new Set(); let order = [];
-      for (let i = 0; i < 400; i++) { stepPlayer(P, { left: true, right: false, jump: i === 5 }, DT); if (!order.length || order[order.length - 1] !== P.state) order.push(P.state); }
-      return order.join('>') === 'knocked>recover>run' && P.invuln > 0 || order.join('>') === 'knocked>recover>run'; })());
+      const P = newPlayer(); tripPlayer(P, T); let order = [];
+      for (let i = 0; i < 400; i++) { stepPlayer(P, { left: true, right: false }, DT); if (!order.length || order[order.length - 1] !== P.state) order.push(P.state); }
+      return order.join('>') === 'knocked>recover>run'; })());
     check('転倒中は減速し、その後の速度は元に戻る', (() => {
       const P = newPlayer(); tripPlayer(P, T); let minS = 1e9; for (let i = 0; i < 60 * 8; i++) { stepPlayer(P, NOI, DT); if (i > 5) minS = Math.min(minS, P.speed); }
       return minS < speedAt(P.time) * 0.7 && Math.abs(P.speed - speedAt(P.time)) < 1e-6; })());
@@ -488,49 +498,36 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
 
   // --- クレーター：小さなつまずき ---
   (() => {
-    const t = trial('crater', null);
+    const t = trial('crater');
     check('クレーター：踏むとつまずく（1 回・転倒せず run のまま・trips は増えない）', t.hits.length === 1 && t.hits[0].kind === 'stumble' && t.P.trips === 0 && t.P.state === 'run');
-    check('クレーター：つまずき中は軽く減速（slowF = stumble.slowFactor）、stumbleT が立つ', (() => { const P = newPlayer(), OB = newObstacles(); OB.genDist = 1e9; OB.list.push(mkOb('crater', { z: -4 })); let tilt = 0, slow = 0, f = 1; const st = new Set(); for (let i = 0; i < 120; i++) { stepPlayer(P, NOI, DT); stepObstacles(OB, P, DT); st.add(P.state); tilt = Math.max(tilt, P.stumbleT); if (P.slow > slow) { slow = P.slow; f = P.slowF; } } return st.size === 1 && tilt > 0 && slow > 0 && Math.abs(f - O.stumble.slowFactor) < 1e-9; })());
+    check('クレーター：つまずき中は軽く減速（slowF = stumble.slowFactor）、stumbleT が立つ', (() => { const P = newPlayer(), OB = newObstacles(); OB.genDist = 1e9; OB.list.push(mkOb('crater', { z: -4 })); let tilt = 0, slow = 0, f = 1; const st = new Set(); for (let i = 0; i < 120; i++) { stepPlayer(P, NOI, DT); stepObstacles(OB, P, DT); st.add(P.state); tilt = Math.max(tilt, P.stumbleT); if (P.slow > 0) { slow = Math.max(slow, P.slow); f = P.slowF; } } return tilt > 0 && Math.abs(f - O.stumble.slowFactor) < 1e-9 && slow > 0 && st.size === 1; })());
     check('クレーターのつまずきは転倒より軽い（倍率が大きく、秒が短い）', O.stumble.slowFactor > O.trip.slowFactor && O.stumble.slowSec < O.trip.slowSec);
-    const cr = clearRange('crater');
-    check('クレーター：ジャンプで越えられる', cr.n >= 20 && trial('crater', 5).hits.length === 0, JSON.stringify(cr));
-    check('クレーター：端をかすめるだけなら当たらない', trial('crater', null, null, 2 + O.dinoR * 0.3 + 0.3).hits.length === 0);
+    check('クレーター：手前で隣のレーンへ移れば当たらない', [8, 14, 22].every(d => trial('crater', null, null, null, d).hits.length === 0));
+    check('クレーター：端をかすめるだけなら当たらない', trial('crater', null, 2 + O.dinoR * 0.3 + 0.3).hits.length === 0);
   })();
 
   // --- マグマ溜まり ---
   (() => {
-    const t = trial('pool', null);
-    check('マグマ溜まり：触れると転倒し、減速は岩・倒木より強く長い', t.hits.length === 1 && t.hits[0].kind === 'trip' && t.P.trips === 1 && O.poolTrip.slowFactor < O.trip.slowFactor && O.poolTrip.slowSec > O.trip.slowSec);
-    check('マグマ溜まり：低いジャンプでは越えられない（clearY 未満）／触れてもゲームオーバーにはならない', trial('pool', 3).hits.length === 1 && t.P.state === 'run');
-    check('マグマ溜まり：十分高い位置（y >= clearY）なら上を通れる', (() => { const P = newPlayer(), OB = newObstacles(); OB.genDist = 1e9; OB.list.push(mkOb('pool', { r: 2 })); let n = 0; for (let i = 0; i < 400; i++) { P.y = 1.6; P.grounded = false; stepPlayer(P, NOI, DT); P.y = 1.6; n += stepObstacles(OB, P, DT).hits.length; } return n === 0; })());
-    check('マグマ溜まり：左右に避ければ当たらない', trial('pool', null, null, 3 + O.dinoR + 0.2).hits.length === 0);
+    const t = trial('pool');
+    check('マグマ溜まり：触れると転倒し、減速は岩・倒木より強く長い。ゲームオーバーにはならない', t.hits.length === 1 && t.hits[0].kind === 'trip' && t.P.trips === 1 && O.poolTrip.slowFactor < O.trip.slowFactor && O.poolTrip.slowSec > O.trip.slowSec && t.P.state === 'run');
+    check('マグマ溜まり：手前で隣のレーンへ移れば当たらない', [8, 14, 22].every(d => trial('pool', null, null, null, d).hits.length === 0));
+    check('マグマ溜まり：左右に避ければ当たらない', trial('pool', null, 3 + O.dinoR + 0.2).hits.length === 0);
   })();
 
   // --- アーチ（頭上の障害物。くぐる）---
   (() => {
     const A = O.arch, S = CFG.slide, near = A.hd + O.depthPad;
-    const t0 = trial('arch', null);
+    const t0 = trial('arch');
     check('アーチ：立ったまま走ると頭が当たって転倒する（trips=1）', t0.hits.length === 1 && t0.hits[0].kind === 'trip' && t0.P.trips === 1 && t0.ob.hit === true, '' + t0.hits.length);
-    const sl = trial('arch', null, null, null, 6);
+    const sl = trial('arch', null, null, 6);
     check('アーチ：手前でくぐる（スライド）と当たらずに通れる', sl.hits.length === 0 && sl.P.trips === 0 && sl.P.state === 'run');
-    const clearSlide = (() => { let n = 0; for (let d = 0; d <= 20; d += 0.25) if (!trial('arch', null, null, null, d).hits.length) n++; return n; })();
+    const clearSlide = (() => { let n = 0; for (let d = 0; d <= 20; d += 0.25) if (!trial('arch', null, null, d).hits.length) n++; return n; })();
     check('アーチ：くぐるタイミングに余裕がある（20u のうち 7u 以上の幅で成功）', clearSlide * 0.25 >= 7, 'width ' + clearSlide * 0.25);
-    check('アーチ：くぐるのが遅すぎる／早すぎる（滑走が終わってしまう）と当たる', trial('arch', null, null, null, 0.3).hits.length === 1 && trial('arch', null, null, null, S.sec * 16 + near + 5).hits.length === 1);
-    let jumpClear = 0; for (let d = 0; d <= 26; d += 0.25) if (!trial('arch', d).hits.length) jumpClear++;
-    check('アーチ：ジャンプでは潜れない（どのタイミングで跳んでも当たる）', jumpClear === 0, 'clear ' + jumpClear);
-    check('アーチ：隣の空いたレーンなら立ったままでも通れる', trial('arch', null, null, 4.5).hits.length === 0 && trial('arch', null, null, -4.5).hits.length === 0);
-    check('アーチ：自分のレーンのアーチ（幅 1 レーン）に触れる範囲は、梁の幅＋恐竜半径まで', trial('arch', null, null, A.hd + 0).hits.length === 1 && trial('arch', null, null, CFG.lane.width / 2 - A.inset + O.dinoR + 0.05).hits.length === 0);
-    check('アーチ：くぐった後はジャンプで岩を越えられる（滑走中に跳べる）', (() => { const P = newPlayer(); stepPlayer(P, { ...NOI, slide: true }, DT); run(P, NOI, 0.2); stepPlayer(P, { ...NOI, jump: true }, DT); return !P.sliding && P.vy > 0; })());
-    // 着地後の急降下からくぐる：ジャンプ中にアーチが来て、急降下で潜る
-    check('アーチ：ジャンプの着地前にアーチが来ても、急降下→着地すぐ滑走でくぐれる', (() => {
-      const P = newPlayer(), OB = newObstacles(); OB.genDist = 1e9; const ob = mkOb('arch', { z: -16 }); OB.list.push(ob); let hits = 0, dove = false;
-      for (let i = 0; i < 600; i++) {
-        const jump = i === 0, slide = !dove && !P.grounded && P.vy < 0 && P.y > 0.8; if (slide) dove = true;
-        if (i === 0) stepPlayer(P, { ...NOI, jump: true }, DT); else stepPlayer(P, { ...NOI, slide }, DT);
-        hits += stepObstacles(OB, P, DT).hits.length; if (P.z < ob.z - 20) break;
-      }
-      return dove && hits === 0 && P.state === 'run';
-    })());
+    check('アーチ：くぐるのが遅すぎる／早すぎる（滑走が終わってしまう）と当たる', trial('arch', null, null, 0.3).hits.length === 1 && trial('arch', null, null, S.sec * 16 + near + 5).hits.length === 1);
+    check('アーチ：隣の空いたレーンなら立ったままでも通れる', trial('arch', null, 4.5).hits.length === 0 && trial('arch', null, -4.5).hits.length === 0);
+    check('アーチ：手前で隣のレーンへ移っても通れる', trial('arch', null, null, null, 14).hits.length === 0 && trial('arch', null, null, null, 1).hits.length === 1);
+    check('アーチ：自分のレーンのアーチ（幅 1 レーン）に触れる範囲は、梁の幅＋恐竜半径まで', trial('arch', null, A.hd + 0).hits.length === 1 && trial('arch', null, CFG.lane.width / 2 - A.inset + O.dinoR + 0.05).hits.length === 0);
+    check('アーチ：ジャンプ入力は効かない（跳んでも潜れず当たる）', (() => { const P = newPlayer(), OB = newObstacles(); OB.genDist = 1e9; const ob = mkOb('arch', { z: -30 }); OB.list.push(ob); let hits = 0; for (let i = 0; i < 400; i++) { stepPlayer(P, { left: false, right: false, jump: i % 5 === 0 }, DT); hits += stepObstacles(OB, P, DT).hits.length; if (P.z < ob.z - 20) break; } return hits === 1 && P.trips === 1 && P.slowF < 1; })());
     check('アーチ：スコアのコンボに含まれる（くぐった/避けたアーチが連続回避として数えられる）', (() => {
       const G = newGame(), Sc = newScore(), obs = [1, 2, 3].map(i => Object.assign(mkOb('arch', { z: -20 * i }), { id: i }));
       for (const ob of obs) { G.OB.list = obs; G.P.z = ob.z - 4; scoreStep(Sc, G, { landed: [], obstacle: { hits: [] } }, DT); }
@@ -544,16 +541,16 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
     const go = (G, sec, inp) => { for (let i = 0, n = Math.round(sec / DT); i < n; i++) stepGame(G, inp || NOI, DT); return G; };
     const G = quiet(); go(G, 1);
     check('開始直後から障害物が先の方に生成されている（startDist 内は空）', G.OB.list.length > 0 && G.OB.list.every(o => o.dist >= O.startDist) && G.OB.genDist >= G.P.dist + O.aheadDist);
-    check('生成は前方 aheadDist まで、通り過ぎたものは破棄される（リストが増え続けない）', (() => { const Q = quiet(); Q.P.invuln = 1e9; let maxN = 0, bad = 0; for (let i = 0; i < 60 * 90; i++) { stepGame(Q, NOI, DT); maxN = Math.max(maxN, Q.OB.list.length); if (Q.OB.list.some(o => o.z > Q.P.z + O.behindDist + 1e-9)) bad++; } return maxN <= Math.ceil((O.aheadDist + O.behindDist + O.chunk) / O.minGapZ) + 1 && bad === 0 && Q.OB.list.length > 0 && Q.OB.nextId > maxN + 5; })());
+    check('生成は前方 aheadDist まで、通り過ぎたものは破棄される（リストが増え続けない）', (() => { const Q = quiet(); Q.P.invuln = 1e9; let maxN = 0, bad = 0; for (let i = 0; i < 60 * 90; i++) { stepGame(Q, NOI, DT); maxN = Math.max(maxN, Q.OB.list.length); if (Q.OB.list.some(o => o.z > Q.P.z + O.behindDist + 1e-9)) bad++; } return maxN <= 30 && bad === 0 && Q.OB.list.length > 0 && Q.OB.nextId > maxN + 5; })());
     const H = quiet(); for (let i = 0; i < 60 * 40 && !H.OB.list.some(o => o.hit); i++) stepGame(H, NOI, DT);
     const hitOb = H.OB.list.find(o => o.hit);
     check('何もしないで走ると最初の障害物に当たる（岩・倒木・溜まりは転倒、クレーターはつまずき）', !!hitOb && hitOb.dist >= O.startDist && (hitOb.type === 'crater' ? H.P.stumbleT > 0 : H.P.state === 'knocked'), hitOb ? hitOb.type : 'none');
     go(H, 4);
     check('転倒してもゲームオーバーにならない（phase は playing）・起き上がって走る', H.M.phase === 'playing' && H.P.state === 'run');
-    // 障害物だけを避けるボット（噴石なし）：dodge 0 = 岩・倒木・クレーターはジャンプ、アーチはくぐる（溜まりだけ隣のレーンへ）/ dodge 1 = 隣の空いたレーンへ避ける
+    // 障害物だけを避けるボット（噴石なし）：地上の障害物は必ず隣のレーンへ。dodge 0 = アーチはくぐる / dodge 1 = アーチも隣の空いたレーンへ
     const runB = (seed, dodge) => botRun({ seed, rngSeed: seed, err: 0, quiet: true, maxDist: 1800, dodge });
     const botsA = [11, 22, 33, 44, 55].map(s => runB(s, 0)), botsB = [11, 22, 33, 44, 55].map(s => runB(s, 1));
-    check('障害物をジャンプ・くぐる（溜まりだけ隣のレーン）で避け続ければ転倒せず 1800u 走れる（5 seed）', botsA.every(r => r.trips === 0 && r.result === 'playing' && r.dist >= 1800) && botsA.reduce((s, r) => s + r.stats.jumps, 0) > 20 && botsA.reduce((s, r) => s + r.stats.slides, 0) > 5, botsA.map(r => r.trips + '/' + Math.round(r.dist) + '/j' + r.stats.jumps + 's' + r.stats.slides).join(' '));
+    check('障害物を避け続ける（地上はレーン移動・アーチはくぐる）と転倒せず 1800u 走れる（5 seed）', botsA.every(r => r.trips === 0 && r.result === 'playing' && r.dist >= 1800) && botsA.reduce((s, r) => s + r.stats.laneMoves, 0) > 40 && botsA.reduce((s, r) => s + r.stats.slides, 0) > 5, botsA.map(r => r.trips + '/' + Math.round(r.dist) + '/m' + r.stats.laneMoves + 's' + r.stats.slides).join(' '));
     check('障害物を隣のレーンへ避け続けても（できるときは必ずレーン移動）転倒せず 1800u 走れる（5 seed）', botsB.every(r => r.trips === 0 && r.result === 'playing' && r.dist >= 1800) && botsB.reduce((s, r) => s + r.stats.laneMoves, 0) > 20, botsB.map(r => r.trips + '/' + Math.round(r.dist) + '/m' + r.stats.laneMoves).join(' '));
     check('障害物は噴石の着弾と重なってもよい（噴石の直撃判定は従来どおり）', (() => { const Q = quiet(); go(Q, 8); const ob = Q.OB.list.find(o => o.z < Q.P.z - 20); if (!ob) return true; spawnRock(Q.RS, 'mid', ob.x, ob.z, lcg(3), 0.05); go(Q, 0.2); return Q.RS.rocks.length === 0; })());
 

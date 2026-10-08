@@ -1,6 +1,6 @@
 // ===== Phase 8：タイトル→開始、スコア、ベストスコア、クリア演出の状態機械、リスタート =====
 (() => {
-  const DT = 1 / 60, NOI = { left: false, right: false, jump: false }, SC = CFG.score, K = CFG.clear;
+  const DT = 1 / 60, NOI = { left: false, right: false }, SC = CFG.score, K = CFG.clear;
   const quietG = () => { const G = newGame(); G.OB.off = true; G.RS.timer = 1e9; return G; };   // 噴石・障害物の出ない、まっさらなゲーム
   const fakeStore = (init) => { const m = {}; if (init != null) m[SC.bestKey] = String(init); return { m, getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); } }; };
   const throwing = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
@@ -11,7 +11,7 @@
   // ---- タイトル → 開始（flow）----
   check('flow：開いた直後は title。stepFlow を何度回してもゲームの時間・距離・噴火タイマーは進まない', (() => {
     const G = newGame(), F = newFlow(null); let ok = F.mode === 'title';
-    for (let i = 0; i < 600; i++) stepFlow(F, G, { left: true, right: false, jump: true }, DT);
+    for (let i = 0; i < 600; i++) stepFlow(F, G, { left: true, right: false }, DT);
     return ok && F.mode === 'title' && G.P.time === 0 && G.P.dist === 0 && G.P.x === 0 && volcanoState(G.P.time).state === 'idle' && G.RS.rocks.length === 0 && !G.M.active && F.t > 9;
   })());
   check('flow：title で R は効かない / flowStart で playing になり、2 回目は何もしない', (() => {
@@ -76,7 +76,7 @@
     const A = sg(), B = sg(); A.G.P.state = 'knocked'; B.G.P.invuln = 1; const e1 = ev0(), e2 = ev0(); e1.landed.push({ rock: mkRock(1, 'mid', 1.3 * R_('mid'), 0), hit: false }); e2.landed.push({ rock: mkRock(2, 'mid', 1.3 * R_('mid'), 0), hit: false });
     scoreStep(A.S, A.G, e1, DT); scoreStep(B.S, B.G, e2, DT); return A.S.bonus === 0 && B.S.bonus === 0;
   })());
-  check('スコア：円の中でジャンプして爆風の上を越えたら（1.0 倍未満でも）ギリギリ回避', (() => { const { G, S } = sg(); G.P.y = CFG.hit.maxY + 0.3; const e = ev0(); e.landed.push({ rock: mkRock(1, 'mid', 0.5, 0), hit: false }); scoreStep(S, G, e, DT); return S.bonus === SC.rock; })());
+  check('スコア：着弾半径の内側（1.0 倍未満）は、直撃でなくても（高さに関係なく）ギリギリ回避にならない', (() => { const { G, S } = sg(); G.P.y = 3; const e = ev0(); e.landed.push({ rock: mkRock(1, 'mid', 0.5, 0), hit: false }); scoreStep(S, G, e, DT); return S.bonus === 0; })());
   check('スコア：大型の警告円の中にいて、着弾までに円の外へ逃げ切った → +300（遠く離れていても）。中型では同じでも加点なし', (() => {
     const A = sg(), B = sg(); A.G.RS.rocks.push(mkRock(1, 'large', 0, 0)); B.G.RS.rocks.push(mkRock(2, 'mid', 0, 0));
     scoreStep(A.S, A.G, ev0(), DT); scoreStep(B.S, B.G, ev0(), DT); const inside = A.S.inside[1] === true && B.S.inside[2] === true;
