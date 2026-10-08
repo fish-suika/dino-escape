@@ -57,37 +57,28 @@ function dnHeadShape(ux, uy, uz, out) {
   return out;
 }
 function dnSurf(ux, uy, uz, out) { const l = Math.hypot(ux, uy, uz) || 1; return dnHeadShape(ux / l, uy / l, uz / l, out); }   // 向きを正規化して頭の表面の点を得る
-function dnMouthY(z, x) { return -0.2 + 0.13 * dnSs(-0.5, 0.2, z) + 0.07 * dnSs(0.1, 0.4, Math.abs(x || 0)); }   // 口の切れ目の高さ（奥・横＝口角ほど上がる＝にっこり）
+function dnMouthY(z) { return -0.2 + 0.13 * dnSs(-0.5, 0.2, z); }   // 口の切れ目の高さ（奥＝口角ほど上がる＝にっこり）
 
 // 頭の上半分（lower=false）/ 下あご（lower=true）。同じ形を口の面で切り分ける。閉じていれば元の丸い頭に戻る
 function dnHeadHalf(lower, ws, hs) {
-  const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position, t = [0, 0, 0], rho = new Float32Array(p.count), inner = new Uint8Array(p.count);
-  const ref = new THREE.SphereGeometry(1, ws, hs), rq = ref.attributes.position;   // 切り分ける前の頭（なめらかな法線の手本）
+  const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position, t = [0, 0, 0], rho = new Float32Array(p.count);
   for (let i = 0; i < p.count; i++) {
-    rho[i] = Math.hypot(p.getX(i), p.getZ(i)); dnHeadShape(p.getX(i), p.getY(i), p.getZ(i), t); rq.setXYZ(i, t[0], t[1], t[2]);
-    const ym = dnMouthY(t[2], t[0]); t[1] = lower ? Math.min(t[1], ym) : Math.max(t[1], ym);
-    inner[i] = Math.abs(t[1] - ym) < 1e-5 && rho[i] < 0.9 ? 1 : 0;   // 口の中の面（天井 / 床）の内側
+    rho[i] = Math.hypot(p.getX(i), p.getZ(i)); dnHeadShape(p.getX(i), p.getY(i), p.getZ(i), t);
+    const ym = dnMouthY(t[2]); t[1] = lower ? Math.min(t[1], ym) : Math.max(t[1], ym);
     p.setXYZ(i, t[0], t[1], t[2]);
   }
-  dnWeld(g); dnWeld(ref);
-  // 切り口のふちの法線は元の頭の丸い法線にそろえる（切り口の面の法線と平均すると、ふちが明るく光って「口が裂けた線」に見えるため）。口の中の面だけ上下向き
-  const gn = g.attributes.normal, rn = ref.attributes.normal;
-  for (let i = 0; i < p.count; i++) { if (inner[i]) gn.setXYZ(i, 0, lower ? 1 : -1, 0); else gn.setXYZ(i, rn.getX(i), rn.getY(i), rn.getZ(i)); }
+  dnWeld(g);
   const L = CFG.dinoLook;
-  // 口（改修 D）：以前は「上あご=緑 / 下あご=クリーム」の色の境い目と、太く暗い唇の線（幅 0.07・濃さ 0.85）が顔の幅いっぱいに回り込み、あごが大きく開く（約 31°）と
-  // 口の中が顔の幅いっぱいに暗く見えて「裂けた口」になっていた。いまは、色の境い目をなくし（下あごも緑・あごの下だけクリーム）、唇の線は細く（lipW）、
-  // 顔の正面の中央（smileHalf の幅）だけに引いて、口角が少し上がった「にっこり」の短い線にする。口の中は開けたときだけ、中央に小さく見える。
   return dnPaint(g, (x, y, z, nx, ny, nz, o, i) => {
-    const ym = dnMouthY(z, x), flat = Math.abs(y - ym) < 1e-5, fw = flat ? dnSs(0.95, 0.72, rho[i]) : 0;   // fw：口の内側の面（上あごの天井 / 下あごの床）の度合い
-    const sm = dnSs(L.smileHalf + 0.1, L.smileHalf - 0.1, Math.abs(x)) * dnSs(0.15, -0.25, z), inM = dnSs(0.5, 0.25, Math.abs(x)) * dnSs(0.2, -0.2, z);   // 唇の線が出る範囲 / 口の中が見える範囲（どちらも正面の中央だけ）
-    dnMixTo(o, DNC.backDark, 0.5 * dnSs(0.0, 0.7, y));
+    const ym = dnMouthY(z), flat = Math.abs(y - ym) < 1e-5, fw = flat ? dnSs(0.95, 0.72, rho[i]) : 0;   // fw：口の内側の面（上あごの天井 / 下あごの床）の度合い
     if (lower) {
-      dnMixTo(o, DNC.belly, 0.9 * dnSs(0.1, 0.34, ym - y));   // あごの下だけクリーム（上あごとの境い目の色の差は無い）
-      if (flat) { dnMixTo(o, DNC.tongue, fw * inM); dnMixTo(o, DNC.mouth, fw * inM * 0.4 * dnSs(0.15, 0.35, Math.abs(x))); }
-      else dnMixTo(o, DNC.lip, 0.8 * sm * (1 - dnSs(0, L.lipW, ym - y)));
+      dnMixTo(o, DNC.belly, 0.92);
+      if (flat) { dnMixTo(o, DNC.lip, 0.85 * (1 - fw)); dnMixTo(o, DNC.tongue, fw); dnMixTo(o, DNC.mouth, fw * 0.55 * dnSs(0.25, 0.5, Math.abs(x))); }
+      else dnMixTo(o, DNC.lip, 0.85 * (1 - dnSs(0, 0.07, ym - y)));
     } else {
+      dnMixTo(o, DNC.backDark, 0.5 * dnSs(0.0, 0.7, y));
       dnMixTo(o, DNC.blush, 0.8 * Math.exp(-(Math.pow(Math.abs(x) - 0.52, 2) * 26 + Math.pow(y + 0.02, 2) * 30 + Math.pow(z + 0.28, 2) * 14)));
-      if (flat) dnMixTo(o, DNC.mouth, fw * inM); else dnMixTo(o, DNC.lip, 0.8 * sm * (1 - dnSs(0, L.lipW, y - ym)));
+      if (flat) { dnMixTo(o, DNC.lip, 0.85 * (1 - fw)); dnMixTo(o, DNC.mouth, fw); } else dnMixTo(o, DNC.lip, 0.85 * (1 - dnSs(0, 0.07, y - ym)));
     }
   });
 }
@@ -156,57 +147,6 @@ function dnToon(map, opt) {
   return m;
 }
 
-// ---- 目のテクスチャ（改修 D）：黒目 = 濃い茶〜黒の瞳＋琥珀色の虹彩のグラデーション＋うるうるの下側の反射＋ふちの暗い輪＋ハイライト（大きい光・小さい光・右下の光点）----
-function dnEyeTextures() {
-  const S = 256, mk = () => { const c = document.createElement('canvas'); c.width = c.height = S; return [c, c.getContext('2d')]; };
-  const [ce, g] = mk(), R = S / 2;
-  const disc = (ctx, x, y, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
-  g.save(); g.beginPath(); g.arc(R, R, R - 1, 0, 7); g.clip();
-  disc(g, R, R, R, '#1a0a0c');
-  const ir = g.createRadialGradient(R, R + R * 0.06, R * 0.12, R, R + R * 0.06, R * 0.95);   // 虹彩：外へ向かって 濃い茶 → 琥珀 → ふちの暗い輪
-  ir.addColorStop(0.0, '#0a0406'); ir.addColorStop(0.3, '#12070a'); ir.addColorStop(0.38, '#5e2a1a'); ir.addColorStop(0.62, '#b8661f'); ir.addColorStop(0.84, '#e9a03e'); ir.addColorStop(0.97, '#3a1a10'); ir.addColorStop(1.0, '#1a0a0c');
-  g.fillStyle = ir; g.beginPath(); g.arc(R, R, R - 2, 0, 7); g.fill();
-  const wet = g.createRadialGradient(R, R * 1.62, 0, R, R * 1.62, R * 0.62);   // うるうる：下側のふちに回り込む明るい反射
-  wet.addColorStop(0, 'rgba(255,226,150,0.75)'); wet.addColorStop(0.55, 'rgba(255,190,100,0.28)'); wet.addColorStop(1, 'rgba(255,170,80,0)');
-  g.fillStyle = wet; g.fillRect(0, 0, S, S);
-  g.restore();
-  g.fillStyle = '#fff'; g.beginPath(); g.ellipse(S * 0.36, S * 0.31, S * 0.155, S * 0.18, -0.45, 0, 7); g.fill();   // 大きい白い光
-  disc(g, S * 0.62, S * 0.22, S * 0.07, '#fff'); disc(g, S * 0.3, S * 0.6, S * 0.04, 'rgba(255,255,255,0.85)');   // 小さい白い光
-  disc(g, S * 0.68, S * 0.72, S * 0.05, 'rgba(255,255,255,0.95)');                                                // 右下の光点
-  const [cs, h] = mk(); h.fillStyle = '#fff'; h.beginPath(); h.arc(R, R, R - 1, 0, 7); h.fill(); h.strokeStyle = '#2a1230'; h.lineCap = 'round';   // ぐるぐる目：白地にうずまき
-  h.lineWidth = S * 0.045; h.beginPath(); for (let a = 0; a < 6.2 * 2; a += 0.15) { const r = (a / (6.2 * 2)) * R * 0.82 + 3, x = R + Math.cos(a) * r, y = R + Math.sin(a) * r; if (a) h.lineTo(x, y); else h.moveTo(x, y); } h.stroke();
-  h.lineWidth = S * 0.03; h.beginPath(); h.arc(R, R, R - 4, 0, 7); h.stroke();
-  const [ck, k] = mk(), cx = R;   // きらめき：十字の 4 本の光＋中心の丸い光
-  const gl = k.createRadialGradient(cx, cx, 0, cx, cx, R * 0.5); gl.addColorStop(0, 'rgba(255,255,255,1)'); gl.addColorStop(0.35, 'rgba(255,240,200,0.55)'); gl.addColorStop(1, 'rgba(255,220,160,0)');
-  k.fillStyle = gl; k.fillRect(0, 0, S, S); k.fillStyle = '#fff';
-  [[1, 0, 0.95], [0, 1, 0.95], [0.7071, 0.7071, 0.45], [-0.7071, 0.7071, 0.45]].forEach(([dx, dy, len]) => {
-    k.beginPath(); k.moveTo(cx + dx * R * len, cx + dy * R * len); k.lineTo(cx - dy * R * 0.1, cx + dx * R * 0.1); k.lineTo(cx - dx * R * len, cx - dy * R * len); k.lineTo(cx + dy * R * 0.1, cx - dx * R * 0.1); k.closePath(); k.fill();
-  });
-  const T = c => { const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; };
-  return { eye: T(ce), spiral: T(cs), star: T(ck) };
-}
-// 開けた口の絵：卵形（上がやや細い）の口の中＝上が深い赤・下へ明るく、下に舌のピンク、ふちは細い茶色の線。歯は描かない
-function dnMouthTexture() {
-  const S = 128, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
-  const egg = (cx, cy, rx, ry) => { g.beginPath(); g.moveTo(cx, cy - ry); g.bezierCurveTo(cx + rx * 0.62, cy - ry, cx + rx, cy - ry * 0.1, cx + rx, cy + ry * 0.25); g.bezierCurveTo(cx + rx, cy + ry * 0.8, cx + rx * 0.55, cy + ry, cx, cy + ry); g.bezierCurveTo(cx - rx * 0.55, cy + ry, cx - rx, cy + ry * 0.8, cx - rx, cy + ry * 0.25); g.bezierCurveTo(cx - rx, cy - ry * 0.1, cx - rx * 0.62, cy - ry, cx, cy - ry); g.closePath(); };
-  egg(S / 2, S / 2, S * 0.45, S * 0.46);
-  const gr = g.createLinearGradient(0, S * 0.05, 0, S * 0.95); gr.addColorStop(0, '#5a1a2c'); gr.addColorStop(0.5, '#a63048'); gr.addColorStop(1, '#c4506a');
-  g.fillStyle = gr; g.fill();
-  g.save(); egg(S / 2, S / 2, S * 0.45, S * 0.46); g.clip();
-  g.fillStyle = '#f48a9c'; g.beginPath(); g.ellipse(S / 2, S * 0.9, S * 0.34, S * 0.27, 0, 0, 7); g.fill();   // 舌
-  g.fillStyle = 'rgba(255,215,222,0.55)'; g.beginPath(); g.ellipse(S * 0.44, S * 0.74, S * 0.1, S * 0.045, -0.2, 0, 7); g.fill();
-  g.restore();
-  egg(S / 2, S / 2, S * 0.45, S * 0.46); g.lineWidth = 5; g.strokeStyle = '#7b3a2c'; g.stroke();
-  const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
-}
-
-// 黒目の殻（球の前の一部）：頂点の uv を「正面から見た平面の投影」で作り直す（テクスチャが円盤として貼れる）。軸は -z 向き。正面から見て画面の右＝ワールドの -x
-function dnEyeCap(r, th) {
-  const g = new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, th).rotateX(-Math.PI / 2), p = g.attributes.position, uv = g.attributes.uv, rc = r * Math.sin(th);
-  for (let i = 0; i < p.count; i++) uv.setXY(i, 0.5 - p.getX(i) / (2 * rc), 0.5 + p.getY(i) / (2 * rc));
-  return g;
-}
-
 function buildDino() {
   const D = CFG.dino, L = CFG.dinoLook, TR = L.tailRings;
   ['back', 'backDark', 'stripe', 'belly', 'foot', 'claw', 'spikeBase', 'spikeTip', 'blush', 'mouth', 'tongue', 'lip'].forEach(k => { DNC[k] = new THREE.Color(L[k]); });
@@ -244,29 +184,13 @@ function buildDino() {
     return dnPlace(dnSpikeGeo(), t[0] * 0.95, t[1] * 0.95, t[2] * 0.95, h[3] * 0.7, h[3], h[3] * 0.7, 0.55, 0, h[0] * -0.5);
   });
   head.add(new THREE.Mesh(dnMerge(horns), skin));
-  // 開けた口：顔の正面の中央（口の線の上）に小さな丸〜卵形の口の中（深い赤・下に舌のピンク）を貼る。あご自体は小さくしか動かさない（jawMax）。閉じているときは見えない
-  const mouth = (() => {
-    const tp = [0, 0, 0]; let lo = -1.2, hi = 0.4;   // 顔の正面（x=0）で、口の線の高さ dnMouthY に表面がくる点を二分法で探す
-    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; dnSurf(0, Math.sin(m), -Math.cos(m), tp); if (tp[1] > dnMouthY(tp[2], 0)) hi = m; else lo = m; }
-    const a = (lo + hi) / 2; dnSurf(0, Math.sin(a), -Math.cos(a), tp);
-    const nrm = new THREE.Vector3(0, Math.sin(a) * 0.55, -1).normalize(), g = new THREE.Group();
-    const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ map: dnEyeTextures.mouth || (dnEyeTextures.mouth = dnMouthTexture()), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-    g.add(mesh); g.position.set(tp[0], tp[1] + 0.005, tp[2] - 0.012); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), nrm); g.visible = false; g.rotation.z += 0;   // CircleGeometry は +z 向き。-z 向きの法線へ回して貼る（両面描画）
-    head.add(g);
-    return { g, mesh, y: tp[1] };
-  })();
   const eyes = [], pups = [], lids = [], tmp = [0, 0, 0];
-  // 目（改修 D）：大きな丸い眼球（白目は細い縁だけ）に、大きな黒目（虹彩のグラデーション＋うるうるの反射＋複数のハイライトを描いたテクスチャを、丸い殻に貼る）。
-  // ぐるぐる目（被弾）のときはテクスチャをうずまきに差し替えて回す。まばたきのあとに、目のそばで小さな星がキラッと瞬く（スプライト 2 枚。毎フレームの処理は位置と大きさだけ）。
-  const E = L.eye, ET = dnEyeTextures(), eyeMat = new THREE.MeshBasicMaterial({ map: ET.eye, fog: false });
-  const capGeo = dnEyeCap(E.pupR, 82 * Math.PI / 180);
-  const starMat = new THREE.SpriteMaterial({ map: ET.star, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: 0 }), stars = [];
   [-1, 1].forEach(s => {
     dnSurf(s * 0.5, 0.42, -0.6, tmp); const ex = tmp[0] * 0.9, ey = tmp[1] * 0.9, ez = tmp[2] * 0.9;   // 目の中心（頭の表面より少し内側 → 半分とび出す）
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(E.r, 16, 12), white); eye.position.set(ex, ey, ez); head.add(eye); eyes.push(eye);
-    const pup = new THREE.Mesh(capGeo, eyeMat); const pb = [ex + s * 0.01, ey, ez - E.pupOff]; pup.position.set(pb[0], pb[1], pb[2]); head.add(pup); pups.push(pup); pup.userData.base = pb;
-    const lid = new THREE.Mesh(new THREE.SphereGeometry(E.lid, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lid.position.set(ex, ey, ez); lid.rotation.x = 1.45; head.add(lid); lids.push(lid);
-    const st = new THREE.Sprite(starMat.clone()); st.position.set(ex + s * 0.22, ey + 0.2, ez - 0.2); st.scale.set(0.001, 0.001, 1); head.add(st); stars.push(st);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 12), white); eye.position.set(ex, ey, ez); head.add(eye); eyes.push(eye);
+    const pup = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 8), black); const pb = [ex + s * 0.01, ey, ez - 0.145]; pup.position.set(pb[0], pb[1], pb[2]); head.add(pup); pups.push(pup); pup.userData.base = pb;
+    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), glint); gl.position.set(-s * 0.035, 0.05, -0.085); pup.add(gl);   // 瞳のハイライト
+    const lid = new THREE.Mesh(new THREE.SphereGeometry(0.245, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lid.position.set(ex, ey, ez); lid.rotation.x = 1.45; head.add(lid); lids.push(lid);
     dnSurf(s * 0.2, 0.3, -0.93, tmp); const nos = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), black); nos.position.set(tmp[0], tmp[1] + 0.02, tmp[2] + 0.02); nos.scale.set(1, 0.7, 1); head.add(nos);   // 鼻の穴
   });
 
@@ -321,7 +245,7 @@ function buildDino() {
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; shadow.scale.set(0.9, 1.4, 1);
 
   const group = new THREE.Group(); group.add(root); group.add(shadow);
-  const d = { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, lids, jawPivot, sweat, tail, stars, mouth, eyeMat, ET, phase: 0, slide: 0, lm: 0, fear: 0, panic: 0, clock: 0, idle: false, clr: null };
+  const d = { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, lids, jawPivot, sweat, tail, phase: 0, slide: 0, lm: 0, fear: 0, panic: 0, clock: 0, idle: false, clr: null };
   dinoTailUpdate(d);
   d.tris = dnTris(group) - 20;   // 影の円（20 角形）を除いた三角形数
   return d;
@@ -358,29 +282,19 @@ function dinoTailUpdate(d) {
 
 // 表情：widen=目の見開き 0〜1 / jaw=口の開き 0〜1 / dizzy=目が回る時計（0 なら回らない）。小さな変化だけで「焦り」を出す
 function dinoFace(d, widen, jaw, dizzy) {
-  const k = fxInt(), w = widen * k, L = CFG.dinoLook, E = L.eye, es = 1 + 0.3 * w, ps = dizzy > 0 ? 1 : 1 - 0.1 * w;
-  const ph = d.clock % 3.4, bl = Math.max(0, 1 - Math.abs(ph - 0.07) / 0.07);   // ときどきまばたき
-  d.eyes.forEach(e => e.scale.setScalar(es));
-  // 黒目の殻の位置：眼球（半径 E.r×es）の表面から、殻が約 75° ぶん顔を出すように、眼球の中心からの距離を決める（目の見開きで眼球が大きくなっても黒目が埋もれない）
-  const R = E.r * es, r = E.pupR * ps, dd = (-0.5176 * r + Math.sqrt(0.268 * r * r + 4 * (R * R - r * r))) / 2;
-  d.eyeMat.map = dizzy > 0 ? d.ET.spiral : d.ET.eye;
+  const k = fxInt(), w = widen * k;
+  d.eyes.forEach(e => e.scale.setScalar(1 + 0.4 * w));
   d.pups.forEach((p, i) => {
-    const b = p.userData.base, z0 = b[2] + E.pupOff - dd;   // 通常の位置（base は dd = pupOff のとき）から、前後だけずらす
-    p.scale.setScalar(ps); p.visible = bl < 0.5;   // まぶたが閉じるあいだは黒目を隠す（殻がまぶたより前に出ているため）
-    if (dizzy > 0) { const a = dizzy * 13 + i * 2.1; p.position.set(b[0] + Math.cos(a) * 0.035, b[1] + Math.sin(a) * 0.035, z0); p.rotation.z = -a * 1.3; }   // 目がぐるぐる（うずまきが回る）
-    else { p.position.set(b[0], b[1], z0); p.rotation.z = 0; }
+    const b = p.userData.base;
+    p.scale.setScalar(1 - 0.35 * w);
+    if (dizzy > 0) { const a = dizzy * 13 + i * 2.1; p.position.set(b[0] * 0.8 + Math.cos(a) * 0.1, b[1] + Math.sin(a) * 0.1, b[2] + 0.1); }   // 目がぐるぐる
+    else p.position.set(b[0], b[1], b[2]);
   });
-  const m = Math.max(0, Math.min(1, jaw * k));
-  d.jawPivot.rotation.x = -L.jawMax * m;
-  const M = d.mouth, op = m < 0.04 ? 0 : dnSs(0.04, 0.5, m) * 0.75 + 0.25 * m;   // 開けたときだけ、小さな丸〜卵形の口が正面に出る
-  M.g.visible = op > 0;
-  if (op > 0) { M.g.scale.set(L.mouthW * (0.45 + 0.55 * op), L.mouthH * op, 1); M.g.position.y = M.y - 0.012 - L.mouthH * op * 0.35 + 0.0; }
-  d.lids.forEach(l => { l.scale.setScalar(es); l.rotation.x = 1.45 - 2.0 * bl + 0.3 * w; });
-  d.stars.forEach((s, i) => {   // まばたきのあと、目のそばで小さな星がキラッと瞬く（左右で少しずらす）
-    const u = (ph - 0.08 - i * 0.07) / 0.5, a = u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0;
-    s.visible = a > 0.01; if (a > 0) { const sz = E.sparkle * (0.5 + 0.7 * a); s.scale.set(sz, sz, 1); s.material.opacity = a; s.material.rotation = u * 1.5; }
-  });
+  d.jawPivot.rotation.x = -0.55 * jaw * k;
+  const ph = d.clock % 3.4, bl = Math.max(0, 1 - Math.abs(ph - 0.07) / 0.07);   // ときどきまばたき
+  d.lids.forEach(l => { l.scale.setScalar(1 + 0.4 * w); l.rotation.x = 1.45 - 2.0 * bl + 0.3 * w; });
 }
+
 // 1 フレームの更新：ポーズを決めてから、尻尾の曲げを反映する（どのポーズでも最後に必ず通る）
 function updateDino(d, P, dt) { updateDinoPose(d, P, dt); dinoTailUpdate(d); }
 function updateDinoPose(d, P, dt) {
