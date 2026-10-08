@@ -3,11 +3,10 @@
 // 差（gap）= P.dist - M.front が 0 以下になったらゲームオーバー（ジャンプ中でも関係なし）
 function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 
-function newMagma() { return { phase: 'playing', active: false, front: -CFG.magma.startGap, speed: 0, t: 0, deadT: 0, deathDist: 0 }; }
+function newMagma() { return { phase: 'playing', active: false, clearT: 0, front: -CFG.magma.startGap, speed: 0, t: 0, deadT: 0, deathDist: 0 }; }
 function newGame() { return { P: newPlayer(), M: newMagma(), RS: newRockSched(), OB: newObstacles() }; }
 
-// 噴火してから e 秒後のマグマの速さ
-function magmaSpeedAt(e) { const C = CFG.magma; return Math.min(C.speedMax, C.speed0 + C.accel * Math.max(0, e)); }
+// 噴火してから e 秒後のマグマの速さ magmaSpeedAt(e) は 29-difficulty-logic.js（難易度の強度に連動）
 function magmaGap(M, P) { return P.dist - M.front; }
 // 近さ 0〜1（range 以上離れていれば 0、接触で 1）
 function magmaProx(gap, range) { return clamp01(1 - gap / range); }
@@ -29,7 +28,7 @@ function stepMagma(M, P, dt, erupting) {
     if (!erupting) return false;
     M.active = true;
   }
-  M.t += dt; M.speed = magmaSpeedAt(M.t); M.front += M.speed * dt;
+  M.t += dt; M.speed = magmaSpeedAt(M.t) * magmaRubber(P.dist - M.front); M.front += M.speed * dt;
   if (P.dist - M.front <= 0) {
     M.phase = 'dead'; M.deadT = 0; M.deathDist = P.dist; M.front = P.dist;
     P.state = 'dead'; P.stateT = 0; P.vx = 0; P.vy = 0; P.kvx = 0; P.kvf = 0; P.invuln = 0; P.slow = 0; P.tumble = 0;
@@ -39,16 +38,27 @@ function stepMagma(M, P, dt, erupting) {
   return false;
 }
 
-// ゲーム全体を 1 フレーム進める。G = { P, M, RS }。playing の間だけ前進・操作・噴石の新規生成が動く。
+// ゲーム全体を 1 フレーム進める。G = { P, M, RS, OB }。playing の間だけ前進・操作・噴石の新規生成が動く。
 // dead の間はプレイヤーは動かず（P.stateT は死亡演出の経過秒）、噴石は新しく出ないが、すでに落下中のものは着弾する。
+// clear（goal.distance に到達）：前進・噴石・マグマ・障害物をすべて止める（落下中の噴石も消す）。M.phase === 'clear'
 function stepGame(G, inp, dt, rng) {
-  const { P, M, RS, OB } = G, ev = { spawned: [], landed: [], died: false, obstacle: { hits: [], spawned: [], removed: 0 } };
+  const { P, M, RS, OB } = G, ev = { spawned: [], landed: [], died: false, cleared: false, obstacle: { hits: [], spawned: [], removed: 0 } };
   if (M.phase === 'playing') {
     stepPlayer(P, inp, dt);
     if (OB) ev.obstacle = stepObstacles(OB, P, dt);
     const erupting = volcanoState(P.time).state === 'erupting';
-    const r = stepRocks(RS, P, dt, erupting, rng); ev.spawned = r.spawned; ev.landed = r.landed;
+    RS.s = erupting ? difficultyAt(P.time - CFG.volcano.eruptDelay).s : 0;   // 噴石の間隔・大きさ・同時数は難易度の強度で決まる
+    const r = stepRocks(RS, P, dt, erupting, rng, OB); ev.spawned = r.spawned; ev.landed = r.landed;
     ev.died = stepMagma(M, P, dt, erupting);
+    if (!ev.died && reachedGoal(G)) {
+      M.phase = 'clear'; M.clearT = 0; ev.cleared = true; RS.rocks = [];
+      P.speed = 0; P.vx = 0; P.kvx = 0; P.kvf = 0; P.slow = 0; P.invuln = 0; P.tumble = 0; P.stumbleT = 0;
+      if (P.state !== 'run') { P.state = 'run'; P.stateT = 0; }
+      if (P.y < 0.05) { P.y = 0; P.grounded = true; }
+    }
+  } else if (M.phase === 'clear') {
+    P.stateT += dt; M.clearT += dt;
+    if (!P.grounded) { P.vy -= CFG.jump.gravity * dt; P.y += P.vy * dt; if (P.y <= 0) { P.y = 0; P.vy = 0; P.grounded = true; } }   // 空中でクリアしたら着地だけする
   } else {
     P.stateT += dt;
     const r = stepRocks(RS, P, dt, false, rng); ev.landed = r.landed;

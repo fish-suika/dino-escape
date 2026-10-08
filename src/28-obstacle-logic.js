@@ -12,14 +12,15 @@ function obLerp(a, b, t) { return a + (b - a) * t; }
 
 // 枠が埋まる確率。走行距離で start → end へ線形に増える（level は先取り分 0〜1）
 function obDensity(dist, level) {
-  const O = CFG.obstacle, D = O.density, t = clamp01((dist - O.startDist) / D.over + (level || 0));
+  const D = CFG.obstacle.density, t = clamp01(difficultyAtDist(dist).s + (level || 0));   // 難易度の強度（その距離を走る頃の噴火後の秒から）
   return obLerp(D.start, D.end, t);
 }
 
 // 枠 k の「素の」障害物（他との兼ね合いを見る前）。無ければ null。乱数は常に同じ順に使う
 function obSlot(seed, k, level) {
   const O = CFG.obstacle, rng = obRng(seed, k);
-  const dist = O.startDist + k * O.slotStep + rng() * (O.slotStep - O.minGapZ);
+  const u = O.startDist + k * O.slotStep + rng() * (O.slotStep - O.minGapZ);   // 基準速度での位置
+  const dist = O.startDist + (u - O.startDist) * speedScaleAtDist(u);   // 速く走るほど間隔を広げる（時間で見た間隔・ジャンプの余裕が一定になる。単調増加なので順序と最低間隔 minGapZ は保たれる）
   const fill = rng(), pick = rng(), a = rng(), b = rng(), c = rng();
   if (fill >= obDensity(dist, level)) return null;
   const types = ['rock', 'log', 'crater', 'pool'].filter(t => dist - O.startDist >= O.unlock[t] && O.weights[t] > 0);
@@ -48,10 +49,10 @@ function obSlot(seed, k, level) {
 function obFinal(seed, k, level) {
   const O = CFG.obstacle, ob = obSlot(seed, k, level);
   if (!ob) return null;
-  for (let j = -2; j <= 2; j++) {
+  for (let j = -3; j <= 3; j++) {
     if (j === 0 || k + j < 0) continue;
     const n = obSlot(seed, k + j, level);
-    if (!n || n.type !== 'log' || Math.abs(n.dist - ob.dist) >= O.logClearZ) continue;
+    if (!n || n.type !== 'log' || Math.abs(n.dist - ob.dist) >= O.logClearZ * speedScaleAtDist(ob.dist)) continue;
     if (ob.type !== 'log' || j < 0) return null;
   }
   return ob;
@@ -60,7 +61,7 @@ function obFinal(seed, k, level) {
 // 走行距離 [-zFrom, -zTo) にある障害物を、手前（スタート側）から順に返す（zFrom > zTo。z は前方が負）。同じ引数なら同じ結果
 function planObstacles(seed, zFrom, zTo, level) {
   const O = CFG.obstacle, d0 = -zFrom, d1 = -zTo, out = [];
-  const k0 = Math.max(0, Math.floor((d0 - O.startDist) / O.slotStep) - 1), k1 = Math.ceil((d1 - O.startDist) / O.slotStep) + 1;
+  const gMax = CFG.run.maxSpeed / CFG.run.baseSpeed, k0 = Math.max(0, Math.floor((d0 - O.startDist) / (O.slotStep * gMax)) - 1), k1 = Math.ceil((d1 - O.startDist) / O.slotStep) + 1;
   for (let k = k0; k <= k1; k++) {
     const ob = obFinal(seed, k, level);
     if (ob && ob.dist >= d0 && ob.dist < d1) out.push(ob);

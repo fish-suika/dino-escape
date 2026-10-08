@@ -283,7 +283,7 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   // 走り続ける（被弾なし）場合の余裕
   const B = quiet(); let minGap = 1e9, catchT = -1, t = 0;
   while (t < 900 && catchT < 0) { stepGame(B, NOI, DT); t += DT; if (B.M.active) minGap = Math.min(minGap, magmaGap(B.M, B.P)); if (B.M.phase === 'dead') catchT = t; }
-  check('被弾せず走り続ければ追いつかれない（900 秒走っても。少なくとも 40 秒は余裕）', catchT < 0, 'caught at ' + catchT);
+  check('被弾せず走り続ければクリアまで追いつかれない（クリアで打ち切り）', catchT < 0, 'caught at ' + catchT);
   check('走り続けている間の最小間隔は 20u 以上（60 秒時点）', (() => { const C = quiet(); go(C, CFG.volcano.eruptDelay + 60); return magmaGap(C.M, C.P) > 20; })());
   window.__magmaCatchT = catchT; window.__minGap = minGap;
 
@@ -393,7 +393,7 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
       if (o.type === 'pool') minCorr = Math.min(minCorr, Math.max((o.x - o.r) + MX, MX - (o.x + o.r)));   // 左右どちらか広い方の通路幅
     }
   }
-  check('配置：300 seed × 3000u で多数生成される', nTot > 20000, 'n ' + nTot);
+  check('配置：300 seed × 3000u で多数生成される', nTot > 12000, 'n ' + nTot);
   check('配置：障害物どうしの前後間隔は常に minGapZ 以上（全 seed）', minGap >= O.minGapZ - 1e-9, 'min ' + minGap);
   check('配置：同じ z 帯（前後の幅が重なる位置）に 2 個並ばない', bandOverlap === 0, 'overlap ' + bandOverlap);
   check('配置：倒木の前後 logClearZ 以内に他の障害物がない', minLog >= O.logClearZ - 1e-9, 'min ' + minLog);
@@ -404,7 +404,7 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   check('配置：4 種類すべてが出る', counts.rock > 0 && counts.log > 0 && counts.crater > 0 && counts.pool > 0, JSON.stringify(counts));
   check('配置：開始から startDist までは何も置かない（全 seed）', early === 0 && O.startDist >= 40 && O.startDist <= 60);
   check('配置：クレーター・倒木・溜まりは unlock 距離より前に出ない（少しずつ増える）', craterEarly === 0 && logEarly === 0 && poolEarly === 0);
-  check('配置：密度は距離とともに増える（終盤 > 序盤）', nLate / 500 > nEarly / 450 * 1.1 && obDensity(3000) > obDensity(60), nEarly + ' / ' + nLate);
+  check('配置：密度は距離とともに増える（終盤 > 序盤）', obDensity(3000) > obDensity(60) * 1.5 && obDensity(900) > obDensity(300), nEarly + ' / ' + nLate);
   check('配置：序盤の密度は低い（500u までは 1 枠あたり 6 割以下）', nEarly / 300 / (450 / O.slotStep) < 0.62, '' + nEarly / 300 / (450 / O.slotStep));
   check('配置：level を上げると密度が上がる', planObstacles(7, 0, -1000, 1).length >= planObstacles(7, 0, -1000, 0).length);
 
@@ -503,5 +503,3 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   })();
 })();
 
-document.getElementById('sum').textContent = nNg === 0 ? `ALL PASS (${nOk})` : `FAIL ${nNg} / PASS ${nOk}`;
-document.getElementById('sum').style.color = nNg === 0 ? '#6bd07a' : '#ff6b6b';
