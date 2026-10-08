@@ -12,13 +12,17 @@ cat src/00-head.html \
     src/28-obstacle-logic.js \
     src/29-difficulty-logic.js \
     src/24-fx-logic.js \
+    src/31-score-logic.js \
+    src/32-flow-logic.js \
     src/30-world.js \
+    src/34-cave.js \
     src/35-volcano.js \
     src/37-magma.js \
     src/36-rocks.js \
     src/38-obstacles.js \
     src/39-fx.js \
     src/40-dino.js \
+    src/45-hud.js \
     src/50-input.js \
     src/60-sound.js \
     src/90-boot.js \
@@ -35,10 +39,13 @@ cat src/verify-head.html \
     src/28-obstacle-logic.js \
     src/29-difficulty-logic.js \
     src/24-fx-logic.js \
+    src/31-score-logic.js \
+    src/32-flow-logic.js \
     src/verify-bot.js \
     src/verify-tests.js \
     src/verify-phase6.js \
     src/verify-fx.js \
+    src/verify-phase8.js \
     src/verify-tail.js \
     src/99-tail.html > verify.html
 

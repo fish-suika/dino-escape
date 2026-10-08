@@ -54,7 +54,7 @@ function buildMagma() {
 
 // 再スタート用：見た目の状態を初期化（オブジェクトは作り直さない）
 function resetMagmaView() {
-  MAG.t = 0; MAG.hudGap = -1; MAG.hudN = -1; MAG.overlayOn = false;
+  MAG.t = 0; MAG.hudGap = -1; MAG.hudN = -1; MAG.overlayOn = false; MAG.calm = false;
   [MAG.sparks, MAG.steam].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.cursor = 0; S.acc = 0; pflush(S); });
   MAG.$over.classList.remove('on'); MAG.$glow.style.opacity = 0; MAG.$heat.style.opacity = 0; MAG.$view.style.transform = '';
   MAG.mesh.position.z = 1e5; MAG.light.intensity = 0;
@@ -86,11 +86,11 @@ function updateMagma(P, M, dt) {
   const C = CFG.magma, gap = magmaGap(M, P), dead = M.phase === 'dead';
   MAG.t += dt; MAG.uni.time.value = MAG.t;
   const zf = -M.front;
-  MAG.mesh.position.set(0, 0, zf);
-  const prox = dead ? 1 : magmaProx(gap, C.heatRange);
+  MAG.mesh.position.set(0, 0, zf); MAG.mesh.visible = M.active;   // 噴火して動き出すまでは見せない（タイトル画面やクリアの振り返りで、待機中の溶岩が後ろに見えてしまうのを防ぐ）
+  const prox = dead ? 1 : MAG.calm ? 0 : magmaProx(gap, C.heatRange);
 
   // 火の粉と蒸気：先端の波頭から、画面に見える範囲（プレイヤーの左右）に出す。遠い間は出さない
-  if (gap < 160 || dead) {
+  if ((gap < 160 || dead) && !MAG.calm) {   // クリア後（calm）はマグマが静まる：火の粉も蒸気も出さない
     const F = CFG.fx.magma, k = fxInt();   // 近いほど・演出が強いほど増える（intensity 0 なら従来の量）
     MAG.sparks.acc += (45 + (F.spark - 45) * k) * (1 + (0.6 * prox) * k) * dt; MAG.steam.acc += (18 + (F.steam - 18) * k) * (1 + (0.5 * prox) * k) * dt;
     while (MAG.sparks.acc >= 1) { MAG.sparks.acc -= 1; magEmit(MAG.sparks, P.x * 0.9 + rnd(-26, 26), rnd(2, C.crestH), zf + rnd(0.5, 3), rnd(-3, 3), rnd(4, 14), rnd(-7, 3), rnd(0.7, 1.6), rnd(1.2, 2.8), 1); }
@@ -100,7 +100,7 @@ function updateMagma(P, M, dt) {
   MAG.light.position.set(P.x, 3, zf + 4); MAG.light.intensity = C.lightMax * prox * prox * (0.9 + 0.1 * Math.sin(MAG.t * 9));
 
   // 画面の赤み：下端の照り返し（噴火後は常に少し）・全体の赤い縁・熱ゆらぎ
-  const glow = Math.min(1, (M.active ? C.glowBase : 0) + 0.95 * prox), pulse = 0.85 + 0.15 * Math.sin(MAG.t * 6);
+  const glow = Math.min(1, (M.active && !MAG.calm ? C.glowBase : 0) + 0.95 * prox), pulse = 0.85 + 0.15 * Math.sin(MAG.t * 6);
   MAG.$glow.style.opacity = (glow * pulse).toFixed(3);
   MAG.$heat.style.opacity = (prox * prox * 0.9).toFixed(3);
   const wb = C.wobble * prox * prox;
@@ -110,7 +110,4 @@ function updateMagma(P, M, dt) {
   const gm = Math.max(0, Math.round(gap)), n = dead ? 5 : magmaDanger(gap);
   if (gm !== MAG.hudGap) { MAG.hudGap = gm; MAG.$gap.textContent = gm + 'm'; }
   if (n !== MAG.hudN) { MAG.hudN = n; MAG.$dots.forEach((d, i) => d.classList.toggle('lit', i < n)); MAG.$gauge.classList.toggle('hot', n >= 4); }
-  if (dead && !MAG.overlayOn && M.deadT >= C.overlayDelay) {
-    MAG.overlayOn = true; MAG.$overDist.textContent = '逃走距離：' + Math.floor(M.deathDist) + 'm'; MAG.$over.classList.add('on');
-  }
 }

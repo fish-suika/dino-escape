@@ -1,5 +1,5 @@
 // ===== サウンド（WebAudio で生成。外部ファイルなし）。最初のキー押下で開始、M でミュート =====
-const SND = { ctx: null, master: null, rumbleG: null, hissG: null, muted: false, noiseBuf: null };
+const SND = { ctx: null, master: null, rumbleG: null, hissG: null, muted: false, noiseBuf: null, volMul: 1 };   // volMul＝火山の持続音の倍率（クリア演出で変える）
 
 function sndNoise(ctx, brown) {
   const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
@@ -59,8 +59,8 @@ function sndBoom() {
 function sndUpdate(fx) {
   if (!SND.ctx || !SND.rumbleG) return;
   const S = CFG.sound, now = SND.ctx.currentTime;
-  SND.rumbleG.gain.setTargetAtTime(S.rumbleIdle + (S.rumbleErupt - S.rumbleIdle) * fx.k, now, 0.3);
-  SND.hissG.gain.setTargetAtTime(0.18 * fx.k, now, 0.4);
+  SND.rumbleG.gain.setTargetAtTime((S.rumbleIdle + (S.rumbleErupt - S.rumbleIdle) * fx.k) * SND.volMul, now, 0.3);
+  SND.hissG.gain.setTargetAtTime(0.18 * fx.k * SND.volMul, now, 0.4);
 }
 
 
@@ -212,6 +212,59 @@ function sndHit(power) {
   const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(380, t + 0.04); o.frequency.exponentialRampToValueAtTime(120, t + 0.55);
   const l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 26; lg.gain.value = 30; l.connect(lg); lg.connect(o.frequency);
   o.connect(f); o.start(t + 0.04); l.start(t + 0.04); o.stop(t + 0.62); l.stop(t + 0.62);
+}
+
+
+// ===== Phase 8 追加のサウンド =====
+function sndSetVolcanoMul(m) { SND.volMul = m; }
+
+// 「キラーン」：ギリギリ回避（大型は少し長く低い音も重ねる）
+function sndGreat(big) {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, v = 0.9;
+  sndTone(c, SND.master, t, 0.22, 'triangle', 1320, 1760, 0.2 * v, 0.006);
+  sndTone(c, SND.master, t + 0.07, 0.3, 'triangle', 1760, 2349, 0.18 * v, 0.006);
+  sndTone(c, SND.master, t + 0.02, 0.18, 'sine', 3520, 3520, 0.07 * v, 0.004);
+  if (big) { sndTone(c, SND.master, t + 0.14, 0.45, 'triangle', 988, 1318, 0.2 * v, 0.01); sndTone(c, SND.master, t, 0.3, 'sine', 330, 247, 0.22 * v, 0.01); }
+}
+// 恐竜の「キュッ」：驚いた短い声
+function sndSurprise() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime;
+  sndTone(c, SND.master, t, 0.22, 'sawtooth', 520, 1050, 0.12, 0.01);
+  sndTone(c, SND.master, t + 0.2, 0.3, 'sawtooth', 900, 380, 0.1, 0.01);
+}
+// 巨大な大爆発「ドゴォォォォォン！！！」：通常の大噴火より長く・重く。ノイズ（高→低）＋超低音＋地鳴りの余韻
+function sndMegaBoom() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, g = c.createGain();
+  g.gain.setValueAtTime(1.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 5.2); g.connect(SND.loud);
+  const s = c.createBufferSource(); s.buffer = SND.white; const f = c.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(5200, t); f.frequency.exponentialRampToValueAtTime(55, t + 4.2);
+  s.connect(f); f.connect(g); s.start(t); s.stop(t + 5.3);
+  const o = c.createOscillator(), og = c.createGain(); o.type = 'sine';
+  o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(18, t + 3.2);
+  og.gain.setValueAtTime(2.0, t); og.gain.exponentialRampToValueAtTime(0.001, t + 4.4); o.connect(og); og.connect(SND.loud); o.start(t); o.stop(t + 4.5);
+  const o2 = c.createOscillator(), o2g = c.createGain(); o2.type = 'sawtooth';   // ガリッと割れる低い唸り
+  o2.frequency.setValueAtTime(70, t); o2.frequency.exponentialRampToValueAtTime(26, t + 2.4);
+  o2g.gain.setValueAtTime(0.5, t); o2g.gain.exponentialRampToValueAtTime(0.001, t + 2.6);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220; o2.connect(lp); lp.connect(o2g); o2g.connect(SND.loud); o2.start(t); o2.stop(t + 2.7);
+  for (let i = 0; i < 5; i++) sndBurst(c, SND.loud, t + 0.35 + i * 0.4 + Math.random() * 0.1, 0.5, 'lowpass', 900, 70, 0.4 - i * 0.05, 0.7);   // 続けてドン、ドン
+}
+// ため息「ふぅ……」：息のノイズがふくらんで消える
+function sndSigh() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, g = c.createGain();
+  g.gain.setValueAtTime(0.0002, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.45); g.gain.exponentialRampToValueAtTime(0.0002, t + 1.5); g.connect(SND.master);
+  const s = c.createBufferSource(); s.buffer = SND.white; const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8;
+  f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(380, t + 1.4);
+  s.connect(f); f.connect(g); s.start(t); s.stop(t + 1.55);
+}
+// クリアのファンファーレ：やさしく上がる 3 音
+function sndFanfare() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime;
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => { sndTone(c, SND.master, t + i * 0.16, i === 3 ? 0.9 : 0.4, 'triangle', f, f, 0.2, 0.01); sndTone(c, SND.master, t + i * 0.16, i === 3 ? 0.9 : 0.4, 'sine', f / 2, f / 2, 0.12, 0.01); });
 }
 
 function sndToggleMute() {

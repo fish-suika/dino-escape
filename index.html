@@ -62,17 +62,56 @@
   #gameover.on .go,#clear.on .go{animation:goIn .95s cubic-bezier(.2,1.4,.4,1) both}
   #gameover.on .sub{animation:fadeUp .8s .55s both}
   #gameover.on .dist,#clear.on .dist{animation:fadeUp .8s .85s both}
-  #gameover.on .again,#clear.on .again{animation:fadeUp .6s 1.4s both,blink 1.1s 2s ease-in-out infinite alternate}
+  #gameover.on .again,#clear.on .again{animation:fadeUp .6s 1.6s both,blink 1.1s 2.2s ease-in-out infinite alternate}
+  /* ===== Phase 8：スコア・タイトル・クリア演出 ===== */
+  #score{position:relative;font-size:clamp(13px,1.45vw,21px);font-weight:800;letter-spacing:.12em;color:#ffe9b8;font-variant-numeric:tabular-nums;text-shadow:0 2px 0 rgba(70,14,0,.9),0 0 12px rgba(255,150,40,.5),0 2px 8px #000;line-height:1.2}
+  #score.bump #scoreTxt{display:inline-block;animation:sbump .35s ease-out}
+  @keyframes sbump{0%{transform:scale(1.35);color:#fff}100%{transform:scale(1)}}
+  #score .pop{position:absolute;left:100%;top:-2px;margin-left:12px;white-space:nowrap;opacity:0;font-size:1.25em;font-weight:900;color:#ffd24a;-webkit-text-stroke:1px rgba(90,30,0,.9);text-shadow:0 0 10px #ff9a1a,0 2px 6px #000;pointer-events:none}
+  #score .pop.on{animation:popUp var(--popSec,1.1s) ease-out forwards}
+  @keyframes popUp{0%{opacity:0;transform:translateY(8px) scale(.6)}15%{opacity:1;transform:translateY(0) scale(1.15)}70%{opacity:1}100%{opacity:0;transform:translateY(-16px) scale(1)}}
+  #great{position:fixed;left:0;right:0;top:27%;text-align:center;font-size:clamp(24px,5.6vw,92px);white-space:nowrap;font-weight:900;letter-spacing:.07em;font-style:italic;color:#fff3a8;-webkit-text-stroke:3px #7a3a00;text-shadow:0 0 26px #ffd24a,0 0 8px #fff,0 5px 0 #5a2a00;pointer-events:none;opacity:0}
+  #great.on{animation:great var(--greatSec,.9s) cubic-bezier(.2,1.2,.4,1) forwards}
+  #great.big{color:#ffe0a0;-webkit-text-stroke-color:#8a1a00;text-shadow:0 0 30px #ff7a1a,0 0 10px #fff,0 6px 0 #5a0d00}
+  @keyframes great{0%{opacity:0;transform:scale(.4) rotate(-6deg)}14%{opacity:1;transform:scale(1.3) rotate(2deg)}30%{transform:scale(1) rotate(-1deg)}75%{opacity:1}100%{opacity:0;transform:scale(1.1) translateY(-14px)}}
+  #title{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:space-between;text-align:center;padding:clamp(16px,5vh,64px) 16px clamp(14px,4vh,48px);pointer-events:none;background:linear-gradient(to bottom,rgba(12,2,0,.6),rgba(12,2,0,0) 34%,rgba(12,2,0,0) 55%,rgba(12,2,0,.78))}
+  .mode-title #title{display:flex}
+  #title .logo{font-size:clamp(24px,7.4vw,150px);font-weight:900;letter-spacing:.06em;line-height:1.05;color:#ffd9a0;-webkit-text-stroke:4px #7a1500;paint-order:stroke fill;text-shadow:0 0 34px #ff5a14,0 8px 0 #5a0d00,0 12px 24px #000;animation:logoIn 1.2s cubic-bezier(.2,1.3,.4,1) both}
+  #title .tag{margin-top:6px;font-size:clamp(16px,3vw,40px);font-weight:800;letter-spacing:.2em;color:#ffcf8a;text-shadow:0 2px 10px #000,0 0 16px rgba(255,90,20,.7);animation:fadeUp .8s .5s both}
+  @keyframes logoIn{0%{opacity:0;transform:scale(2.2) rotate(-4deg);letter-spacing:.3em}60%{opacity:1;transform:scale(.96)}100%{opacity:1;transform:scale(1)}}
+  #title .keys{display:grid;grid-template-columns:repeat(2,auto);gap:6px 22px;justify-content:center;margin:0 auto 14px;padding:10px 20px;border-radius:14px;background:rgba(20,8,6,.55);border:1px solid rgba(255,160,80,.28);font-size:clamp(12px,1.5vw,20px);letter-spacing:.08em;text-align:left;animation:fadeUp .8s .9s both}
+  #title .keys div{display:flex;align-items:center;gap:8px;white-space:nowrap}
+  #title kbd{display:inline-block;min-width:1.7em;padding:1px 7px;border-radius:6px;border:1px solid rgba(255,220,170,.6);border-bottom-width:3px;background:rgba(60,28,20,.8);color:#ffe9c8;font:inherit;font-weight:800;text-align:center}
+  #title .best{font-size:clamp(15px,2.2vw,30px);font-weight:900;letter-spacing:.14em;color:#ffe9b8;text-shadow:0 2px 8px #000;margin-bottom:8px;animation:fadeUp .8s 1.1s both}
+  #title .start{font-size:clamp(18px,3vw,40px);font-weight:900;letter-spacing:.16em;color:#fff3c2;-webkit-text-stroke:1.5px #6a1000;text-shadow:0 0 18px #ff7a1a,0 3px 0 #4a0b00;animation:fadeUp .6s 1.3s both,blink 1s 1.9s ease-in-out infinite alternate}
+  #boom2{position:fixed;left:0;right:0;top:30%;text-align:center;font-size:clamp(26px,8.2vw,150px);white-space:nowrap;font-weight:900;letter-spacing:.05em;color:#fff0c0;-webkit-text-stroke:4px #8a1000;paint-order:stroke fill;text-shadow:0 0 40px #ff5a14,0 0 12px #fff,0 8px 0 #5a0d00;pointer-events:none;opacity:0}
+  #boom2.on{animation:boom2 3.2s ease-out forwards}
+  @keyframes boom2{0%{opacity:0;transform:scale(.3)}6%{opacity:1;transform:scale(1.5) rotate(-3deg)}14%{transform:scale(1.15) rotate(2deg)}22%{transform:scale(1.3) rotate(-1.5deg)}30%{transform:scale(1.2) rotate(1deg)}75%{opacity:1;transform:scale(1.25)}100%{opacity:0;transform:scale(1.4)}}
+  #relief{position:fixed;left:0;right:0;top:38%;text-align:center;font-size:clamp(24px,6vw,92px);white-space:nowrap;font-weight:800;letter-spacing:.12em;color:#fff8e8;-webkit-text-stroke:2px #3a2a10;paint-order:stroke fill;text-shadow:0 3px 0 #2a1a08,0 0 20px rgba(255,220,160,.6);pointer-events:none;opacity:0}
+  #relief.on{animation:relief 2.6s ease-in-out forwards}
+  @keyframes relief{0%{opacity:0;transform:translateY(14px) scale(.96)}25%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
+  #flash.mega{background:#fff1d6}
+  #gameover .score,#clear .score{font-size:clamp(22px,3.6vw,50px);font-weight:900;letter-spacing:.1em;color:#ffe9b8;font-variant-numeric:tabular-nums;text-shadow:0 2px 10px #000,0 0 18px rgba(255,140,40,.6)}
+  #gameover .best,#clear .best{font-size:clamp(15px,2.2vw,30px);font-weight:800;letter-spacing:.12em;font-variant-numeric:tabular-nums;text-shadow:0 2px 10px #000}
+  #gameover .newrec,#clear .newrec{display:none;margin-left:.6em;color:#ffd24a;-webkit-text-stroke:1px #6a3a00;animation:blink .55s ease-in-out infinite alternate}
+  #gameover .best.rec .newrec,#clear .best.rec .newrec{display:inline}
+  #gameover.on .score,#clear.on .score{animation:fadeUp .8s 1.05s both}
+  #gameover.on .best,#clear.on .best{animation:fadeUp .8s 1.25s both}
+  #clear .sub{font-size:clamp(16px,2.6vw,34px);letter-spacing:.12em;text-shadow:0 2px 10px #000}
+  #clear.on .sub{animation:fadeUp .8s .55s both}
+  .mode-title #hud,.mode-title #hint,.mode-title #edge{display:none}
+  .mode-clear #danger,.mode-clear #magma,.mode-clear #hint{display:none}
 </style>
 </head>
-<body>
+<body class="mode-title">
 <div id="view"></div>
 <div id="lavaGlow"></div><div id="heat"></div><div id="edge"></div><div id="hitVig"></div>
-<div id="hud"><div id="hudL"><div id="dist">距離：0m</div><div id="magma"><span>マグマ</span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="magmaGap">--m</span></div></div><div id="danger" class="d0">危険度：LOW</div></div>
-<div id="gameover"><div class="go">GAME OVER</div><div class="sub">火山から逃げ切れなかった……</div><div class="dist" id="overDist">逃走距離：0m</div><div class="again">[R] もう一度逃げる</div></div>
-<div id="clear"><div class="go">CLEAR（仮）</div><div class="dist" id="clearDist">逃走距離：0m</div><div class="again">[R] もう一度</div></div>
-<div id="boom">ドゴォォォン！！！</div><div id="scream">ギャーー！！</div><div id="oops">うわっ！</div><div id="flash"></div><div id="mute">♪ ON (M)</div>
+<div id="hud"><div id="hudL"><div id="dist">距離：0m</div><div id="score"><span id="scoreTxt">SCORE 0</span><span class="pop"></span><span class="pop"></span><span class="pop"></span><span class="pop"></span></div><div id="magma"><span>マグマ</span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span id="magmaGap">--m</span></div></div><div id="danger" class="d0">危険度：LOW</div></div>
+<div id="gameover"><div class="go">GAME OVER</div><div class="sub">火山から逃げ切れなかった……</div><div class="dist" id="overDist">逃走距離：0m</div><div class="score">SCORE <span id="overScore">0</span></div><div class="best" id="overBest">BEST <span id="overBestN">0</span><span class="newrec">NEW RECORD!</span></div><div class="again">[R] もう一度逃げる</div></div>
+<div id="clear"><div class="go">CLEAR!</div><div class="sub">火山から逃げ切った！</div><div class="dist" id="clearDist">逃走距離：0m</div><div class="score">SCORE <span id="clearScore">0</span></div><div class="best" id="clearBest">BEST <span id="clearBestN">0</span><span class="newrec">NEW RECORD!</span></div><div class="again">[R] もう一度逃げる</div></div>
+<div id="boom">ドゴォォォン！！！</div><div id="boom2">ドゴォォォォォン！！！</div><div id="relief">……危なかった</div><div id="great">GREAT ESCAPE!</div><div id="scream">ギャーー！！</div><div id="oops">うわっ！</div><div id="flash"></div><div id="mute">♪ ON (M)</div>
 <div id="hint" class="on">← → / A D 移動 ・ Space ジャンプ ・ M 音ON/OFF</div>
+<div id="title"><div><div class="logo">DINO ESCAPE</div><div class="tag">火山から逃げろ！</div></div><div><div class="keys"><div><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 移動</div><div><kbd>Space</kbd> ジャンプ</div><div><kbd>M</kbd> 音 ON / OFF</div><div><kbd>R</kbd> リスタート</div></div><div class="best" id="titleBest">BEST SCORE 0</div><div class="start">[Space] でスタート</div></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 "use strict";
@@ -139,6 +178,30 @@ const CFG = {
   // クリア（安全地帯）。プレイヤーの速さは 16 + 0.04t（t は開始からの秒）なので、距離 = 16t + 0.02t²。
   // distance=2200 → 約 119.5 秒（被弾なし）。被弾の減速（1 回で約 1.5〜2 秒ぶんの遅れ）を数回受けても 2 分台前半、1〜3 分に収まる
   goal: { distance: 2200 },
+  // スコア（Phase 8）：基本＝走った距離(m)。ボーナスは 噴石のギリギリ回避 / 大型噴石の回避 / 障害物の連続回避 / マグマが近いまま走り続ける
+  score: {
+    bestKey: 'dino-escape-best',                                      // localStorage のキー
+    near: { lo: 1.0, hi: 1.8 },                                      // 着弾点からの距離が（着弾半径＋恐竜半径）のこの倍率の範囲なら「ギリギリ回避」（ジャンプで爆風の上を越えたときは lo 未満でも可）
+    rock: 100, rockLarge: 300,                                       // ギリギリ回避のボーナス（大型は 300）。1 つの噴石につき 1 回だけ（大型の警告円から逃げ切ったときも同じ額）
+    comboFrom: 3, comboMul: 50, comboCap: 10, comboLateral: 3.0,     // 障害物の連続回避：3 連続以上で 50×連続数（連続数は cap まで）/ 「回避した」と数える左右の近さ（障害物の幅＋恐竜半径にこの余裕）
+    magmaGap: 20, magmaPerSec: 40,                                   // マグマとの距離がこれ以内の状態で走り続けると、1 秒ごとにボーナス
+    popSec: 1.1, greatSec: 0.9                                       // 「+100」が浮かぶ秒 / GREAT ESCAPE! の表示秒
+  },
+  // クリア演出（Phase 8）：段階 runin → breathe → lookback → eruption → relief → result。秒数はここ
+  clear: {
+    stopDist: 26, runIn: 2.8,                                        // 安全地帯へ走り込む距離(u) と その秒（自動で減速して止まる）
+    breathe: 2.0, lookBack: 2.2, lookTurn: 1.5,                      // 息を切らす秒 / 振り返りの段階の秒（そのうち回る秒。残りは火山を見つめる間）
+    eruption: 3.4, relief: 3.8, reliefText: 1.1,                     // 大爆発の秒 / ホッとする段階の秒 / 「……危なかった」が出るまでの秒
+    skipFrom: 3.0,                                                   // Space で結果画面へ飛ばせるようになる秒（クリアから。連打のジャンプで誤って飛ばさない）
+    safeZone: 12,                                                    // ゴールの手前この距離から先には障害物を置かない
+    cave: { mouth: 12, length: 48, halfW: 17, height: 30, mass: 34 }, // 洞窟：入口の位置(ゴールから) / 奥行き / 中の半幅 / 高さ / 左右の岩山の厚み
+    vol: { safe: 0.25, boom: 1.5, after: 0.4 },                       // 火山の音量の倍率：安全地帯の中 / 大爆発 / そのあと
+    flash: { sec: 1.4, max: 1 }, shake: { amp: 0.7, sec: 1.8, rumble: 0.14 }, mega: { burst: 220, smokeMul: 0.8, fireMul: 2.5 },   // 巨大な閃光 / 画面揺れ / 噴煙の増やし方
+    lavaSink: 9, lavaSinkSec: 3                                      // クリア後、マグマが引いて沈む（深さと秒）
+  },
+  // カメラの回り込み（タイトル画面の斜め前からの眺め / クリアの振り返り）。a=0 が通常の後ろ追従、π が真正面（火山側を向く）
+  orbit: { R: 14, h: 4.6, lookY: 3.0, lookAhead: 24, tilt: 5 },
+  title: { az: 2.85, drift: 0.12, blend: 1.0 },                      // タイトルの視点の角度 / ゆっくり揺れる幅 / 開始時に通常カメラへ戻る秒
   // 演出（Phase 7）。intensity=0〜1 で演出全体の強さを一括で弱められる（0 でシェイク・ヒットストップ・フラッシュ・追加の粒子が無くなる）。ゲームの難易度・物理は一切変えない
   fx: {
     intensity: 1,
@@ -542,7 +605,10 @@ function stepObstacles(OB, P, dt) {
   if (OB.off) { OB.prevZ = P.z; return ev; }
   const need = P.dist + O.aheadDist;
   while (OB.genDist < need) {
-    for (const ob of planObstacles(OB.seed, -OB.genDist, -(OB.genDist + O.chunk), OB.level)) { ob.id = OB.nextId++; OB.list.push(ob); ev.spawned.push(ob); }
+    for (const ob of planObstacles(OB.seed, -OB.genDist, -(OB.genDist + O.chunk), OB.level)) {
+      if (ob.dist >= CFG.goal.distance - CFG.clear.safeZone) continue;   // ゴールの手前から先は洞窟（安全地帯）。障害物は置かない
+      ob.id = OB.nextId++; OB.list.push(ob); ev.spawned.push(ob);
+    }
     OB.genDist += O.chunk;
   }
   const n0 = OB.list.length;
@@ -691,6 +757,192 @@ function fxSquash(sinceTakeoff, sinceLand, strength) {
   }
   return y;
 }
+// ===== スコアとベストスコア（純ロジック。three.js 非依存。verify.html でテスト）=====
+// スコア = 走った距離(m) + ボーナス。ボーナスは scoreStep が毎フレーム見て加算し、画面に出すもの（「+100」「GREAT ESCAPE!」）は S.events に積む。
+// 重複加点を防ぐ：噴石は id ごとに 1 回（S.done）、障害物も id ごとに 1 回（S.passed）。被弾した噴石・ぶつかった障害物は加点なし。
+function newScore() { return { bonus: 0, combo: 0, bestCombo: 0, nearT: 0, nearSec: 0, inside: {}, done: {}, passed: {}, n: { great: 0, big: 0, combo: 0, magma: 0 }, events: [] }; }
+
+function scoreTotal(S, P, dist) { return Math.floor(dist != null ? dist : P.dist) + S.bonus; }
+
+function scoreAdd(S, kind, pts, text) {
+  S.bonus += pts;
+  const e = { kind, pts, text }; S.events.push(e); return e;
+}
+function scoreTake(S) { const e = S.events; S.events = []; return e; }   // 画面に出す分を取り出す（取り出したら空になる）
+
+// stepGame のあと毎フレーム呼ぶ。ev は stepGame の戻り値
+function scoreStep(S, G, ev, dt) {
+  const { P, M, RS, OB } = G, SC = CFG.score, H = CFG.hit, O = CFG.obstacle;
+  // 1) 噴石：着弾の瞬間に判定。直撃ならコンボも切れる
+  for (const l of ev.landed) {
+    const r = l.rock;
+    if (S.done[r.id]) continue;
+    S.done[r.id] = true;
+    const was = S.inside[r.id]; delete S.inside[r.id];
+    if (l.hit) { S.combo = 0; continue; }
+    if (P.state !== 'run' || P.invuln > 0) continue;            // 吹き飛び中・復帰後の無敵中は加点しない
+    const R = r.radius + H.dinoR, ratio = Math.hypot(P.x - r.x, P.z - r.z) / R, large = r.size === 'large', air = P.y >= H.maxY;
+    const near = ratio <= SC.near.hi && (ratio >= SC.near.lo || air);   // ギリギリ（円の外すぐ。円の中でも跳んで爆風の上を越えたなら可）
+    if (near || (large && was)) {                                // 大型は、警告円の中にいたのに着弾までに出て逃げ切ったときも
+      if (large) { S.n.big++; scoreAdd(S, 'big', SC.rockLarge, 'BIG ESCAPE!!'); }
+      else { S.n.great++; scoreAdd(S, 'great', SC.rock, 'GREAT ESCAPE!'); }
+    }
+  }
+  // 着弾前の噴石：警告円（着弾半径＋恐竜半径）の中に入ったことがあるかを覚える
+  if (P.state === 'run') for (const r of RS.rocks) if (!S.inside[r.id] && Math.hypot(P.x - r.x, P.z - r.z) < r.radius + H.dinoR) S.inside[r.id] = true;
+  // 2) 障害物：ぶつかったらコンボが切れる。通り過ぎたら（ぶつからず・近くを通った）コンボが 1 つ増える
+  if (ev.obstacle && ev.obstacle.hits.length) S.combo = 0;
+  if (OB && M.phase === 'playing') {
+    for (const ob of OB.list) {
+      if (S.passed[ob.id]) continue;
+      const depth = ob.type === 'crater' || ob.type === 'pool' ? ob.r : ob.hd;
+      if (P.z > ob.z - depth - O.depthPad) continue;             // まだ通り過ぎていない（前方は -z）
+      S.passed[ob.id] = true;
+      if (ob.hit || P.state !== 'run' || P.invuln > 0) continue;
+      if (Math.abs(P.x - ob.x) > ob.hw + O.dinoR + SC.comboLateral) continue;   // 遠くを通っただけ：回避とは数えない（コンボは切れない）
+      S.combo++; S.bestCombo = Math.max(S.bestCombo, S.combo);
+      if (S.combo >= SC.comboFrom) { S.n.combo++; scoreAdd(S, 'combo', SC.comboMul * Math.min(S.combo, SC.comboCap), 'COMBO ×' + S.combo); }
+    }
+  }
+  // 3) マグマが近い状態で走り続けた：連続 1 秒ごと
+  if (M.phase === 'playing' && M.active && P.state === 'run' && magmaGap(M, P) < SC.magmaGap) {
+    S.nearT += dt;
+    while (S.nearT >= S.nearSec + 1) { S.nearSec++; S.n.magma++; scoreAdd(S, 'magma', SC.magmaPerSec, 'MAGMA RUN'); }
+  } else { S.nearT = 0; S.nearSec = 0; }
+}
+
+// ---- ベストスコア：localStorage（使えない・例外でも落ちない。st は getItem/setItem を持つもの。null でも可）----
+function bestStorage() { try { return window.localStorage || null; } catch (e) { return null; } }   // file:// やプライベートモードでは例外になることがある
+function bestRead(st) {
+  try { const n = parseInt(st.getItem(CFG.score.bestKey), 10); return n > 0 ? n : 0; } catch (e) { return 0; }
+}
+function bestWrite(st, score) {
+  try { st.setItem(CFG.score.bestKey, String(score)); return true; } catch (e) { return false; }
+}
+// ===== ゲーム全体の流れ（純ロジック。three.js 非依存。verify.html でテスト）=====
+// mode：'title'（開始前。ゲームの時間は進まない）→ 'playing' → 'over'（マグマに飲まれた）/ 'clear'（クリア演出 → 結果）。R で 'playing' に戻る（タイトルは経由しない）。
+// 既存の stepGame / newGame は変えない：開始前かどうかはここ（flow）が持ち、title の間は stepGame を呼ばないだけ。
+function newFlow(store) {
+  const F = { mode: 'title', t: 0, playT: 0, fromTitle: false, store: store || null, best: 0, newRecord: false, score: 0, dist: 0, overT: 0, S: newScore(), clear: null };
+  F.best = bestRead(F.store);
+  return F;
+}
+function flowEmptyEv() { return { spawned: [], landed: [], died: false, cleared: false, obstacle: { hits: [], spawned: [], removed: 0 }, clear: [] }; }
+
+// title → playing（Space）。title 以外では何もしない。戻り値＝開始したか
+function flowStart(F) {
+  if (F.mode !== 'title') return false;
+  F.mode = 'playing'; F.playT = 0; F.fromTitle = true;
+  return true;
+}
+// R が効く場面：マグマに飲まれたあと / クリアの結果画面になってから（演出中は効かない）
+function flowCanRestart(F) { return F.mode === 'over' || (F.mode === 'clear' && !!F.clear && F.clear.stage === 'result'); }
+// 全状態を初期化して playing へ（タイトルは経由しない）。G の中身を入れ替える
+function flowRestart(F, G, seed) {
+  resetGame(G, seed);
+  F.mode = 'playing'; F.playT = 0; F.fromTitle = false; F.t = 0; F.overT = 0; F.newRecord = false; F.score = 0; F.dist = 0; F.S = newScore(); F.clear = null;
+  return F;
+}
+
+// 終了（死亡 / クリア到達）の記録：スコア・ベスト更新
+function flowFinish(F, P) {
+  F.dist = Math.floor(P.dist); F.score = scoreTotal(F.S, P);
+  F.newRecord = F.score > F.best;
+  if (F.newRecord) { F.best = F.score; bestWrite(F.store, F.best); }
+}
+
+// 1 フレーム進める。title の間は G に一切触れない。戻り値は stepGame と同じ形の ev（＋ ev.clear = クリア演出の出来事 ['stage:breathe', 'boom', …]）
+function stepFlow(F, G, inp, dt, rng) {
+  const P = G.P;
+  if (F.mode === 'title') { F.t += dt; return flowEmptyEv(); }
+  if (F.mode === 'playing') {
+    const v0 = P.speed, ev = stepGame(G, inp, dt, rng); ev.clear = [];
+    F.playT += dt;
+    scoreStep(F.S, G, ev, dt);
+    if (ev.died) { F.mode = 'over'; F.overT = 0; flowFinish(F, P); }
+    else if (ev.cleared) { F.mode = 'clear'; F.clear = newClearSeq(v0, P); flowFinish(F, P); }
+    return ev;
+  }
+  const ev = stepGame(G, { left: false, right: false, jump: false }, dt, rng); ev.clear = [];
+  if (F.mode === 'over') F.overT += dt;
+  else if (F.mode === 'clear') ev.clear = clearStep(F.clear, P, dt);
+  return ev;
+}
+
+// カメラの回り込み角（0＝通常の後ろ追従、π＝正面）。タイトルはゆっくり揺れ、開始で通常へ戻る。クリア演出は振り返りで π へ
+function flowCamAz(F) {
+  const T = CFG.title;
+  if (F.mode === 'title') return T.az + Math.sin(F.t * 0.35) * T.drift;
+  if (F.mode === 'playing' && F.fromTitle) return (T.az + Math.sin(F.t * 0.35) * T.drift) * (1 - smooth01(F.playT / T.blend));
+  if (F.mode === 'clear' && F.clear) return Math.PI * clearCam(F.clear);
+  return 0;
+}
+
+// ---- クリア演出の状態機械：runin（安全地帯へ走り込んで減速・停止）→ breathe（息を切らす）→ lookback（振り返る）→ eruption（火山が大爆発）→ relief（……危なかった）→ result ----
+const CLEAR_STAGES = ['runin', 'breathe', 'lookback', 'eruption', 'relief', 'result'];
+function clearDur(i) { const C = CFG.clear; return [C.runIn, C.breathe, C.lookBack, C.eruption, C.relief, Infinity][i]; }
+function newClearSeq(v0, P) { return { i: 0, stage: 'runin', t: 0, T: 0, v0: Math.max(0, v0 || 0), d0: P.dist, x0: P.x, textShown: false, skipped: false }; }
+
+// 走り込み：時刻 t（0〜runIn）の位置 s と速さ。初速 v0 から始まり、runIn 秒でちょうど stopDist 進んで速さ 0 で止まる（3 次のなめらかな減速）
+function clearRunAt(C, t) {
+  const K = CFG.clear, T = K.runIn, D = K.stopDist, v0 = C.v0;
+  if (t >= T) return { s: D, v: 0 };
+  const b = (v0 - 2 * D / T) / (T * T), a = (D - v0 * T) / (T * T) - b * T;
+  return { s: Math.max(0, Math.min(D, v0 * t + a * t * t + b * t * t * t)), v: Math.max(0, v0 + 2 * a * t + 3 * b * t * t) };
+}
+function clearPlace(C, P, t) {   // 走り込みの位置を P へ書く（クリア後の P.dist は演出で動く。ゲームの結果は flowFinish で記録済み）
+  const r = clearRunAt(C, t), K = CFG.clear;
+  P.speed = r.v; P.dist = C.d0 + r.s; P.z = -P.dist;
+  const x = C.x0 * (1 - smooth01(t / K.runIn)); P.vx = 0; P.x = x;   // 洞窟の中央へ寄る
+}
+
+// 1 フレーム進める。起きた出来事の名前の配列を返す：'stage:◯◯' / 'boom'（大爆発の瞬間）/ 'relief-text'（「……危なかった」）
+function clearStep(C, P, dt) {
+  const ev = [];
+  if (C.stage === 'result') return ev;
+  C.T += dt; C.t += dt;
+  while (C.i < CLEAR_STAGES.length - 1 && C.t >= clearDur(C.i)) {
+    C.t -= clearDur(C.i); C.i++; C.stage = CLEAR_STAGES[C.i]; ev.push('stage:' + C.stage);
+    if (C.stage === 'eruption') ev.push('boom');
+  }
+  if (C.stage === 'relief' && !C.textShown && C.t >= CFG.clear.reliefText) { C.textShown = true; ev.push('relief-text'); }
+  clearPlace(C, P, C.i === 0 ? C.t : CFG.clear.runIn);
+  return ev;
+}
+
+// Space で結果画面へ飛ばす（クリアから skipFrom 秒たってから）。飛ばしたら 'skip' ほかの出来事を返す
+function clearSkip(C, P) {
+  if (C.stage === 'result' || C.T < CFG.clear.skipFrom) return [];
+  C.i = CLEAR_STAGES.length - 1; C.stage = 'result'; C.t = 0; C.skipped = true; C.textShown = true;
+  clearPlace(C, P, CFG.clear.runIn);
+  return ['stage:result', 'skip'];
+}
+
+// 見た目に使う値（0〜1）
+function clearTurn(C) { return C.i < 2 ? 0 : C.i === 2 ? smooth01(C.t / CFG.clear.lookTurn) : 1; }                 // 恐竜が回る
+function clearCam(C) { return C.i < 2 ? 0 : C.i === 2 ? smooth01(C.t / CFG.clear.lookBack) : 1; }                  // カメラの回り込み
+function clearShock(C) { return C.i === 3 ? Math.max(0, 1 - C.t / 1.6) : C.i === 4 ? Math.max(0, 0.15 * (1 - C.t / 0.8)) : 0; }   // 驚き（大爆発の直後が最大）
+function clearRelief(C) { return C.i === 4 ? smooth01((C.t - 0.5) / 1.2) : C.i >= 5 ? 1 : 0; }                         // ほっと
+function clearMega(C) { return C.i === 3 ? Math.min(1, C.t / 0.3) : C.i === 4 ? Math.max(0.25, 1 - C.t / 2.6) : C.i >= 5 ? 0.25 : 0; }   // 噴火の増し（噴煙・火）
+function clearFlash(C) { const K = CFG.clear.flash; return C.i === 3 ? K.max * Math.pow(Math.max(0, 1 - C.t / K.sec), 2) : 0; }   // 巨大な閃光
+function clearShakeAmp(C) {   // 画面揺れ（二乗和で他と合成される）
+  const K = CFG.clear.shake;
+  if (C.i === 3) return K.amp * Math.exp(-C.t / (K.sec * 0.5)) + K.rumble;
+  if (C.i === 4) return K.rumble * Math.max(0, 1 - C.t / 1.5);
+  return 0;
+}
+function clearVolMul(C) {   // 火山の音の倍率：安全地帯で小さく → 大爆発で大きく → あとは小さく
+  const V = CFG.clear.vol;
+  if (C.i === 0) return 1 + (V.safe - 1) * smooth01(C.t / CFG.clear.runIn);
+  if (C.i < 3) return V.safe;
+  if (C.i === 3) return V.safe + (V.boom - V.safe) * Math.min(1, C.t / 0.25);
+  if (C.i === 4) return V.after + (V.boom - V.after) * Math.max(0, 1 - C.t / 1.5);
+  return V.after;
+}
+// マグマが沈む深さ（0〜lavaSink）：クリアしてからの秒で
+function clearLavaSink(C) { return CFG.clear.lavaSink * smooth01(C.T / CFG.clear.lavaSinkSec); }
+// 大爆発を見上げる：爆発の瞬間から視線が上へ（噴煙が見えるように）。0〜1
+function clearTilt(C) { return C.i < 3 ? 0 : C.i === 3 ? smooth01(C.t / 0.7) : 1; }
 // ===== 3D ステージ：空・フォグ・地面・装飾・カメラ =====
 const WORLD = {};
 
@@ -786,8 +1038,17 @@ function updateWorld(P, dt) {
   WORLD.camX += (P.x * C.followX - WORLD.camX) * k;
   WORLD.lookX += (P.x * C.lookFollowX - WORLD.lookX) * k;
   WORLD.camY += (C.height + P.y * C.jumpLift - WORLD.camY) * k;
-  cam.position.set(WORLD.camX, WORLD.camY, P.z + C.back);
-  cam.lookAt(WORLD.lookX, C.lookY, P.z - C.lookAhead);
+  let px = WORLD.camX, py = WORLD.camY, pz = P.z + C.back, lx = WORLD.lookX, ly = C.lookY, lz = P.z - C.lookAhead;
+  const a = WORLD.viewAz || 0;   // 回り込み角（タイトル画面・クリアの振り返り）。0 なら通常。恐竜のまわりを回り、a が大きいほど火山（後ろ）側から見る
+  if (a > 0.001) {
+    const O = CFG.orbit, w = smooth01(a / 0.6), u = smooth01((a - 1.2) / 1.7), v = smooth01(a / 0.5);
+    px += (P.x + Math.sin(a) * O.R - px) * w; py += (O.h - py) * w; pz += (P.z + Math.cos(a) * O.R - pz) * w;
+    const hx = P.x - px, hz = P.z - pz, hl = Math.hypot(hx, hz) || 1;   // カメラから恐竜への向き（横向きに見るときも恐竜を画面の中央に保つ）
+    const oy = 2.4 + (O.lookY - 2.4) * u + (WORLD.viewUp || 0) * O.tilt * u, ox = P.x + hx / hl * O.lookAhead * u, oz = P.z + hz / hl * O.lookAhead * u;   // 真横では恐竜を見て、正面に回るほど（その延長の）遠く＝火山を見る
+    lx += (ox - lx) * v; ly += (oy - ly) * v; lz += (oz - lz) * v;
+  }
+  cam.position.set(px, py, pz);
+  cam.lookAt(lx, ly, lz);
   const fov = Math.min(C.fovMax, C.fov + (P.speed - CFG.run.baseSpeed) * C.fovSpeed);
   if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
 }
@@ -795,7 +1056,37 @@ function updateWorld(P, dt) {
 // 再スタート用：装飾を初期配置へ、カメラを最初の位置へ
 function resetWorld() {
   WORLD.decor.forEach(d => WORLD.place(d, true, 0));
-  WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
+  WORLD.viewAz = 0; WORLD.viewUp = 0; WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
+}
+// ===== 安全地帯：大きな岩山と洞窟（three.js）。ゴール（goal.distance）の少し先に置く。動かない・毎フレームの処理なし =====
+// 局所座標：入口の面が z=0、奥は -z。中の空間は x∈[-halfW, halfW]・y∈[0, height]・z∈[-length, 0]。左右・天井・奥の岩のかたまりが囲み、その上に山をのせる。
+const CAVE = {};
+
+function buildCave() {
+  const K = CFG.clear.cave, L = K.length, HW = K.halfW, HT = K.height, MS = K.mass, RH = 22, SH = HT + RH, scene = WORLD.scene;
+  const outer = new THREE.MeshLambertMaterial({ color: 0x4d4440, flatShading: true });
+  const outer2 = new THREE.MeshLambertMaterial({ color: 0x5f524b, flatShading: true });
+  const inner = new THREE.MeshLambertMaterial({ color: 0x1f1613, flatShading: true });
+  const black = new THREE.MeshBasicMaterial({ color: 0x050202 });
+  const g = new THREE.Group(); g.position.set(0, 0, -(CFG.goal.distance + K.mouth)); scene.add(g);
+  const box = (w, h, d, x, y, z, mats) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats); m.position.set(x, y, z); g.add(m); return m; };
+  const o = outer;   // 面の順：+x, -x, +y, -y, +z, -z。中に向く面だけ暗くする
+  box(MS, SH, L + 12, -(HW + MS / 2), SH / 2, -(L + 12) / 2 + 6, [inner, o, o, o, o, o]);     // 左の岩山（中に向く面は +x）
+  box(MS, SH, L + 12, HW + MS / 2, SH / 2, -(L + 12) / 2 + 6, [o, inner, o, o, o, o]);        // 右の岩山（中に向く面は -x）
+  box(2 * (HW + MS), RH, L + 12, 0, HT + RH / 2, -(L + 12) / 2 + 6, [o, o, o, inner, o, o]);   // 天井（中に向く面は -y）
+  box(2 * (HW + MS), SH, 10, 0, SH / 2, -(L + 5), [o, o, o, o, black, o]);                    // 奥の壁（中に向く面は +z）
+  // 山：平たい円すいを重ねて、岩山らしいシルエットに
+  const peak = new THREE.Mesh(new THREE.ConeGeometry(52, 48, 9, 1), outer2); peak.scale.z = 0.62; peak.position.set(0, HT + RH + 24 - 1, -L / 2 - 6); peak.rotation.y = 0.3; g.add(peak);
+  const peak2 = new THREE.Mesh(new THREE.ConeGeometry(30, 62, 7, 1), outer); peak2.scale.z = 0.7; peak2.position.set(-12, HT + RH + 30, -L / 2 - 14); peak2.rotation.y = 1.1; g.add(peak2);
+  const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+  const boulder = (x, y, z, sx, sy, sz, r, m) => { const b = new THREE.Mesh(rockGeo, m || outer); b.position.set(x, y, z); b.scale.set(sx, sy, sz); b.rotation.set(r, r * 1.7, r * 0.6); g.add(b); };
+  boulder(-10, HT + 1.2, 1, 8, 3.4, 6, 1.1); boulder(1, HT + 2.2, 0, 9, 3.2, 5, 2.3, outer2); boulder(11, HT + 1, 1, 8, 3.4, 6, 0.4);   // 入口の上の岩（アーチ）
+  boulder(-(HW + 4), 3, 4, 7, 6, 7, 0.7, outer2); boulder(-(HW + 14), 4.5, 10, 9, 8, 8, 1.9); boulder(HW + 4, 3, 4, 7, 6, 7, 2.9); boulder(HW + 15, 4, 9, 8, 7, 8, 1.2, outer2);   // 入口の両脇の大岩
+  boulder(-(HW + 24), 3, -4, 9, 5, 9, 0.2); boulder(HW + 24, 3, -2, 9, 5, 9, 1.6, outer2);
+  // 中の地面は少し暗く（外は明るい荒野、中は日陰）
+  const shade = new THREE.Mesh(new THREE.PlaneGeometry(2 * HW, L), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  shade.rotation.x = -Math.PI / 2; shade.position.set(0, 0.04, -L / 2); g.add(shade);
+  CAVE.group = g;
 }
 // ===== 火山：モデル・煙・火・火山灰・空の変化（three.js） =====
 const VOL = {};
@@ -829,7 +1120,7 @@ function pflush(P) { ['position', 'aSize', 'aAlpha', 'aColor'].forEach(n => { P.
 
 function buildVolcano() {
   const V = CFG.volcano, scene = WORLD.scene;
-  VOL.scaleU = { value: 360 };
+  VOL.scaleU = { value: 360 }; VOL.mega = 0;
   const tex = makeSoftTexture();
   const group = new THREE.Group(); scene.add(group);   // プレイヤーの z に追従するフレーム
   VOL.group = group;
@@ -839,7 +1130,7 @@ function buildVolcano() {
   const p = cg.attributes.position;
   for (let i = 0; i < p.count; i++) { if (p.getY(i) < V.height / 2 - 0.5) { p.setX(i, p.getX(i) * (1 + Math.sin(i * 12.9) * 0.06)); p.setZ(i, p.getZ(i) * (1 + Math.cos(i * 7.3) * 0.06)); } }
   cg.computeVertexNormals();
-  const mountG = new THREE.Group(); mountG.position.y = V.height / 2;
+  const mountG = new THREE.Group(); mountG.position.set(0, V.height / 2, V.dist);   // 山は後方 V.dist の位置（Phase 8 で修正：以前は恐竜と同じ z に置いてしまい、中から見ると面が裏返って見えなかった）
   mountG.add(new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ color: 0x2b1e1b, flatShading: true, fog: false })));
   // 溶岩の筋（火口縁から斜面に沿って流れる）
   const alpha = Math.atan((V.radius - V.craterR) / V.height), slant = Math.hypot(V.radius - V.craterR, V.height);
@@ -853,7 +1144,7 @@ function buildVolcano() {
   }
   // 火口の光
   const crater = new THREE.Mesh(new THREE.CircleGeometry(V.craterR, 20), new THREE.MeshBasicMaterial({ color: 0xff6a1a, fog: false }));
-  crater.rotation.x = -Math.PI / 2; crater.position.y = V.height + 0.2;
+  crater.rotation.x = -Math.PI / 2; crater.position.set(0, V.height + 0.2, V.dist);
   const vg = new THREE.Group(); vg.add(mountG, crater); group.add(vg); VOL.vg = vg;
   VOL.craterY = V.height;
 
@@ -889,8 +1180,9 @@ function spawnSmoke(S, i, k, level) {
   const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * V.craterR * 0.9;
   S.pos[i * 3] = Math.cos(a) * r; S.pos[i * 3 + 1] = VOL.craterY; S.pos[i * 3 + 2] = V.dist + Math.sin(a) * r;
   // vel: x 横ばらつき / y = 立ちのぼる高さ / z = 手前への流れ
-  S.vel[i * 3] = rnd(-7, 7) * (0.3 + k); S.vel[i * 3 + 1] = rnd(45, 75) + k * rnd(0, 70); S.vel[i * 3 + 2] = -V.windSpeed * rnd(0.55, 1.1) * (0.4 + 0.6 * k);
-  S.s0[i] = rnd(22, 46) * (0.5 + 0.8 * level); S.a0[i] = rnd(0.5, 0.9); S.seed[i] = k;
+  const mg = 1 + CFG.clear.mega.smokeMul * VOL.mega;   // クリアの大爆発：もっと高く・大きく
+  S.vel[i * 3] = rnd(-7, 7) * (0.3 + k) * mg; S.vel[i * 3 + 1] = (rnd(45, 75) + k * rnd(0, 70)) * mg; S.vel[i * 3 + 2] = -V.windSpeed * rnd(0.55, 1.1) * (0.4 + 0.6 * k);
+  S.s0[i] = rnd(22, 46) * (0.5 + 0.8 * level) * (1 + 0.5 * VOL.mega); S.a0[i] = rnd(0.5, 0.9); S.seed[i] = k;
 }
 function spawnFire(S, i) {
   const V = CFG.volcano; S.age[i] = 0;
@@ -898,12 +1190,13 @@ function spawnFire(S, i) {
   S.life[i] = col ? rnd(1.2, 2) : rnd(2, 3.6);
   const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * V.craterR * 0.8;
   S.pos[i * 3] = Math.cos(a) * r; S.pos[i * 3 + 1] = VOL.craterY; S.pos[i * 3 + 2] = V.dist + Math.sin(a) * r;
-  S.vel[i * 3] = rnd(-1, 1) * (col ? 6 : 28); S.vel[i * 3 + 1] = col ? rnd(25, 45) : rnd(45, 90); S.vel[i * 3 + 2] = rnd(-1, 1) * (col ? 6 : 28) - 8;
-  S.s0[i] = col ? rnd(12, 22) : rnd(2.5, 5.5); S.a0[i] = col ? 0.8 : 1; S.seed[i] = col ? 1 : 0;
+  const mg = 1 + 0.6 * VOL.mega;
+  S.vel[i * 3] = rnd(-1, 1) * (col ? 6 : 28) * mg; S.vel[i * 3 + 1] = (col ? rnd(25, 45) : rnd(45, 90)) * mg; S.vel[i * 3 + 2] = (rnd(-1, 1) * (col ? 6 : 28) - 8) * mg;
+  S.s0[i] = (col ? rnd(12, 22) : rnd(2.5, 5.5)) * (1 + 0.5 * VOL.mega); S.a0[i] = col ? 0.8 : 1; S.seed[i] = col ? 1 : 0;
 }
 
 function stepSmoke(S, dt, fx) {
-  S.budget += S.max / CFG.volcano.smokeLife * fx.smoke * dt;
+  S.budget += S.max / CFG.volcano.smokeLife * fx.smoke * dt * (1 + CFG.clear.mega.smokeMul * VOL.mega);
   for (let i = 0; i < S.max; i++) {
     if (S.age[i] >= S.life[i]) { if (S.budget >= 1) { S.budget -= 1; spawnSmoke(S, i, fx.k, fx.smoke); } else { S.alpha[i] = 0; continue; } }
     S.age[i] += dt; const f = S.age[i] / S.life[i], ymax = S.vel[i * 3 + 1];
@@ -918,7 +1211,7 @@ function stepSmoke(S, dt, fx) {
   }
 }
 function stepFire(S, dt, fx) {
-  S.budget += S.max / 2.6 * fx.k * dt;
+  S.budget += S.max / 2.6 * fx.k * dt * (1 + CFG.clear.mega.fireMul * VOL.mega);
   for (let i = 0; i < S.max; i++) {
     if (S.age[i] >= S.life[i]) { if (S.budget >= 1) { S.budget -= 1; spawnFire(S, i); } else { S.alpha[i] = 0; continue; } }
     S.age[i] += dt; const f = S.age[i] / S.life[i], col = S.seed[i] > 0.5;
@@ -987,8 +1280,18 @@ function updateVolcano(P, dt, fx) {
 
 // 再スタート用：噴火前の状態へ（煙・火の粒を消し、空と霧を元の色に戻す）
 function resetVolcano() {
-  VOL.t = 0; VOL.skyK = -1;
+  VOL.t = 0; VOL.skyK = -1; VOL.mega = 0;
   [VOL.smoke, VOL.fire].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.budget = 0; });
+}
+
+// クリアの大爆発の瞬間：火柱・火花と黒煙をいっぺんに吹き上げる（既存の粒の枠を古いものから上書き。粒の上限は変えない）
+function volcanoMegaBurst() {
+  const M = CFG.clear.mega, mg0 = VOL.mega;
+  VOL.mega = 1;
+  const fire = VOL.fire, smoke = VOL.smoke;
+  for (let n = 0; n < M.burst; n++) { const i = (fire.burstI = ((fire.burstI || 0) + 1) % fire.max); spawnFire(fire, i); fire.age[i] = rnd(0, 0.15); }
+  for (let n = 0; n < M.burst * 0.5; n++) { const i = (smoke.burstI = ((smoke.burstI || 0) + 1) % smoke.max); spawnSmoke(smoke, i, 1, 1); smoke.age[i] = rnd(0, 0.4); }
+  VOL.mega = mg0 > 0 ? mg0 : 1;
 }
 // ===== マグマの見た目：溶岩の壁・波頭・火の粉・蒸気・照り返し・熱ゆらぎ・HUD（three.js / DOM） =====
 // 状態（先端の位置）は 27-magma-logic.js の M が持つ。先端は z = -M.front で、そこから後方（+z）へ溶岩面が広がる
@@ -1046,7 +1349,7 @@ function buildMagma() {
 
 // 再スタート用：見た目の状態を初期化（オブジェクトは作り直さない）
 function resetMagmaView() {
-  MAG.t = 0; MAG.hudGap = -1; MAG.hudN = -1; MAG.overlayOn = false;
+  MAG.t = 0; MAG.hudGap = -1; MAG.hudN = -1; MAG.overlayOn = false; MAG.calm = false;
   [MAG.sparks, MAG.steam].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.cursor = 0; S.acc = 0; pflush(S); });
   MAG.$over.classList.remove('on'); MAG.$glow.style.opacity = 0; MAG.$heat.style.opacity = 0; MAG.$view.style.transform = '';
   MAG.mesh.position.z = 1e5; MAG.light.intensity = 0;
@@ -1078,11 +1381,11 @@ function updateMagma(P, M, dt) {
   const C = CFG.magma, gap = magmaGap(M, P), dead = M.phase === 'dead';
   MAG.t += dt; MAG.uni.time.value = MAG.t;
   const zf = -M.front;
-  MAG.mesh.position.set(0, 0, zf);
-  const prox = dead ? 1 : magmaProx(gap, C.heatRange);
+  MAG.mesh.position.set(0, 0, zf); MAG.mesh.visible = M.active;   // 噴火して動き出すまでは見せない（タイトル画面やクリアの振り返りで、待機中の溶岩が後ろに見えてしまうのを防ぐ）
+  const prox = dead ? 1 : MAG.calm ? 0 : magmaProx(gap, C.heatRange);
 
   // 火の粉と蒸気：先端の波頭から、画面に見える範囲（プレイヤーの左右）に出す。遠い間は出さない
-  if (gap < 160 || dead) {
+  if ((gap < 160 || dead) && !MAG.calm) {   // クリア後（calm）はマグマが静まる：火の粉も蒸気も出さない
     const F = CFG.fx.magma, k = fxInt();   // 近いほど・演出が強いほど増える（intensity 0 なら従来の量）
     MAG.sparks.acc += (45 + (F.spark - 45) * k) * (1 + (0.6 * prox) * k) * dt; MAG.steam.acc += (18 + (F.steam - 18) * k) * (1 + (0.5 * prox) * k) * dt;
     while (MAG.sparks.acc >= 1) { MAG.sparks.acc -= 1; magEmit(MAG.sparks, P.x * 0.9 + rnd(-26, 26), rnd(2, C.crestH), zf + rnd(0.5, 3), rnd(-3, 3), rnd(4, 14), rnd(-7, 3), rnd(0.7, 1.6), rnd(1.2, 2.8), 1); }
@@ -1092,7 +1395,7 @@ function updateMagma(P, M, dt) {
   MAG.light.position.set(P.x, 3, zf + 4); MAG.light.intensity = C.lightMax * prox * prox * (0.9 + 0.1 * Math.sin(MAG.t * 9));
 
   // 画面の赤み：下端の照り返し（噴火後は常に少し）・全体の赤い縁・熱ゆらぎ
-  const glow = Math.min(1, (M.active ? C.glowBase : 0) + 0.95 * prox), pulse = 0.85 + 0.15 * Math.sin(MAG.t * 6);
+  const glow = Math.min(1, (M.active && !MAG.calm ? C.glowBase : 0) + 0.95 * prox), pulse = 0.85 + 0.15 * Math.sin(MAG.t * 6);
   MAG.$glow.style.opacity = (glow * pulse).toFixed(3);
   MAG.$heat.style.opacity = (prox * prox * 0.9).toFixed(3);
   const wb = C.wobble * prox * prox;
@@ -1102,9 +1405,6 @@ function updateMagma(P, M, dt) {
   const gm = Math.max(0, Math.round(gap)), n = dead ? 5 : magmaDanger(gap);
   if (gm !== MAG.hudGap) { MAG.hudGap = gm; MAG.$gap.textContent = gm + 'm'; }
   if (n !== MAG.hudN) { MAG.hudN = n; MAG.$dots.forEach((d, i) => d.classList.toggle('lit', i < n)); MAG.$gauge.classList.toggle('hot', n >= 4); }
-  if (dead && !MAG.overlayOn && M.deadT >= C.overlayDelay) {
-    MAG.overlayOn = true; MAG.$overDist.textContent = '逃走距離：' + Math.floor(M.deathDist) + 'm'; MAG.$over.classList.add('on');
-  }
 }
 // ===== 噴石の見た目：落下する燃える岩・危険マーカー・影・爆発・クレーター・画面揺れ（three.js） =====
 // 状態（いつ・どこに落ちるか）は 26-rock-logic.js の S.rocks が持つ。ここは毎フレームそれを映すだけ。
@@ -1466,7 +1766,7 @@ function fxStage(stage) {
 function fxFrame(dt, c) {
   const G = FXV.G, P = G.P, d = FXV.dino, k = fxInt(), F = CFG.fx;
   FXV.t += dt;
-  const run = P.state === 'run' && c.alive;
+  const run = P.state === 'run' && (c.running != null ? c.running : c.alive);   // running：クリアの走り込み中も足音・土煙は出す
   // 恐竜の表情：近い危険マーカー / 近いマグマ
   const near = fxNearRock(G.RS.rocks, P, F.fear.range);
   FXV.fear += ((run ? near.nearness : 0) - FXV.fear) * (1 - Math.exp(-10 * dt));
@@ -1563,11 +1863,14 @@ function buildDino() {
     return hip;
   });
 
+  const sweatMat = new THREE.MeshBasicMaterial({ color: 0x9fd8ff });   // 汗のしずく（息を切らす・ほっとするときだけ見える）
+  const sweat = [0, 1, 2].map(i => { const s = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), sweatMat); s.scale.set(1, 1.5, 1); s.visible = false; head.add(s); return s; });
+
   const shadow = new THREE.Mesh(new THREE.CircleGeometry(1.3, 20), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; shadow.scale.set(0.9, 1.4, 1);
 
   const group = new THREE.Group(); group.add(root); group.add(shadow);
-  return { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, jawPivot, phase: 0, air: 0, fear: 0, panic: 0, squash: 1 };
+  return { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, jawPivot, sweat, phase: 0, air: 0, fear: 0, panic: 0, squash: 1, clock: 0, idle: false, clr: null };
 }
 
 // 表情：widen=目の見開き 0〜1 / jaw=口の開き 0〜1 / dizzy=目が回る時計（0 なら回らない）。小さな変化だけで「焦り」を出す
@@ -1591,6 +1894,9 @@ function updateDino(d, P, dt) {
   d.group.position.set(P.x, 0, P.z);
   d.group.visible = !(P.invuln > 0 && Math.floor(P.time * 14) % 2 === 0);   // 復帰後の無敵中は点滅
   d.body.scale.set(1, 1, 1); d.head.position.y = 2.2; d.torso.scale.y = 0.8; d.root.rotation.z = 0;
+  d.clock += dt; d.root.rotation.y = 0; d.head.rotation.y = 0; d.sweat.forEach(s => { s.visible = false; });
+  if (d.idle) { updateDinoStand(d, P, dt, 0.25, 0); return; }                  // タイトル画面：立って呼吸する
+  if (d.clr && d.clr.stage !== 'runin') { updateDinoClear(d, P, dt, d.clr); return; }   // クリア演出（走り込みの間は通常の走り）
   if (P.state === 'dead') { updateDinoDead(d, P); return; }
   if (P.state !== 'run') { updateDinoHit(d, P); return; }
   d.root.position.z = 0; d.root.rotation.x = 0;
@@ -1653,6 +1959,107 @@ function updateDinoDead(d, P) {
   d.head.rotation.x = -0.5 * (1 - e * 0.5); dinoFace(d, 1, 1, 0);
   d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - e);
 }
+
+// ===== Phase 8：立ち姿（タイトル画面）と、クリア演出のポーズ =====
+// 立ち姿：呼吸。pant が大きいほど荒く、口をあけてハァハァ。lean は前かがみ（負）/ のけぞり（正）
+function updateDinoStand(d, P, dt, pant, lean) {
+  const t = d.clock, k = 1 - Math.exp(-10 * dt), rate = 2.2 + 11 * pant, br = Math.sin(t * rate);
+  d.air += (0 - d.air) * k;
+  d.root.position.set(0, 0, 0); d.root.rotation.x = 0; d.root.rotation.z = 0;
+  d.body.position.y = Math.max(0, br) * (0.01 + 0.05 * pant);
+  d.body.rotation.x += (lean * 0.25 - d.body.rotation.x) * k;
+  const s = 1 + br * (0.015 + 0.05 * pant);
+  d.body.scale.set(1 + (1 - s) * 0.5, s, 1 + (1 - s) * 0.5);
+  d.legs.forEach(l => { l.rotation.x += (0 - l.rotation.x) * k; });
+  d.tail1.rotation.y = Math.sin(t * 1.2) * 0.25; d.tail2.rotation.y = Math.sin(t * 1.2 - 1) * 0.35;
+  d.tail1.rotation.x += (0 - d.tail1.rotation.x) * k; d.tail2.rotation.x += (0 - d.tail2.rotation.x) * k;
+  d.head.rotation.x += (lean * 0.9 * 0.25 - d.head.rotation.x) * k;
+  d.head.rotation.y = Math.sin(t * 0.6) * (0.5 - 0.45 * pant);
+  d.head.position.y = 2.2 + br * 0.03 * (1 + pant * 2);
+  dinoFace(d, 0.1 + 0.25 * pant, 0.08 + 0.6 * pant * (0.5 + 0.5 * br), 0);
+  d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35; d.shadow.scale.set(0.9, 1.4, 1);
+}
+
+// クリア演出：c = { stage, t（段階の経過秒）, turn（回った割合 0〜1）, shock（驚き 0〜1）, relief（ほっと 0〜1） }。runin 以外のとき
+function updateDinoClear(d, P, dt, c) {
+  const st = c.stage, t = d.clock;
+  const pant = st === 'breathe' ? 1 : st === 'lookback' ? 0.55 : st === 'eruption' ? 0.2 : st === 'relief' ? 0.1 + 0.35 * (1 - c.relief) : 0.1;
+  updateDinoStand(d, P, dt, pant, st === 'breathe' ? -1 : st === 'lookback' ? -0.4 : 0);
+  d.root.rotation.y = Math.PI * c.turn;
+  if (st === 'lookback' && c.turn > 0.02 && c.turn < 0.98) {   // 回るあいだ、足をちょこちょこ動かす
+    d.legs[0].rotation.x = Math.sin(t * 11) * 0.5; d.legs[1].rotation.x = -Math.sin(t * 11) * 0.5;
+  }
+  const sh = c.shock;
+  if (sh > 0) {   // 大爆発にびっくり：のけぞって小さく跳ね、目を見開いて口をあける
+    const tt = st === 'eruption' ? c.t : 9, hop = tt < 0.55 ? 1.4 * 4 * (tt / 0.55) * (1 - tt / 0.55) : 0;
+    d.root.position.y = hop;
+    d.body.rotation.x = 0.4 * sh; d.head.rotation.x = 0.35 * sh; d.tail1.rotation.x = -0.5 * sh; d.tail2.rotation.x = -0.35 * sh;
+    d.legs[0].rotation.x = -0.5 * sh; d.legs[1].rotation.x = 0.5 * sh;
+    d.head.rotation.y = 0;
+    dinoFace(d, 0.2 + 0.8 * sh, 0.9 * sh, 0);
+    d.tail1.rotation.y = Math.sin(t * 40) * 0.08 * sh;   // 尻尾がふるえる
+  }
+  const rl = c.relief;
+  if (rl > 0) {   // ほっとする：肩（体）が落ち、頭を下げ、目を細める
+    d.body.scale.y *= 1 - 0.05 * rl; d.head.rotation.x = -0.4 * rl; d.body.rotation.x = -0.12 * rl;
+    d.eyes.forEach(e => { e.scale.y *= 1 - 0.75 * rl; }); d.pups.forEach(p => { p.scale.y *= 1 - 0.8 * rl; });
+  }
+  const sw = st === 'breathe' || st === 'lookback' || st === 'eruption' || (st === 'relief' && rl < 0.9);   // 汗のしずく
+  d.sweat.forEach((s, i) => { s.visible = sw; const f = (t * 0.9 + i / 3) % 1; s.position.set((i === 1 ? -1 : 1) * (0.5 + 0.05 * i), 0.55 - f * 0.9, -0.15 - i * 0.1); });
+}
+// ===== Phase 8 の画面表示（DOM）：スコア・「+100」・GREAT ESCAPE!・タイトル・結果画面 =====
+// 要素は最初に見つけて使い回す（イベントのたびに作らない）。アニメーションは class を付け直して再生する。
+const HUD = { mode: '', score: -1, popI: 0 };
+
+function hudBuild() {
+  const $ = id => document.getElementById(id);
+  Object.assign(HUD, {
+    $score: $('score'), $scoreTxt: $('scoreTxt'), pops: [...document.querySelectorAll('#score .pop')], $great: $('great'), $titleBest: $('titleBest'),
+    $boom2: $('boom2'), $relief: $('relief'), $flash: $('flash'),
+    $overDist: $('overDist'), $overScore: $('overScore'), $overBest: $('overBest'), $overBestN: $('overBestN'), $over: $('gameover'),
+    $clearDist: $('clearDist'), $clearScore: $('clearScore'), $clearBest: $('clearBest'), $clearBestN: $('clearBestN'), $clear: $('clear')
+  });
+  HUD.$score.style.setProperty('--popSec', CFG.score.popSec + 's'); HUD.$great.style.setProperty('--greatSec', CFG.score.greatSec + 's');
+}
+
+function hudRestartAnim(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+// 画面全体の状態（title / playing / over / clear）。body の class で出し分ける
+function hudMode(mode) {
+  if (HUD.mode === mode) return;
+  HUD.mode = mode; document.body.className = 'mode-' + mode;
+}
+
+// SCORE の表示。bump=ボーナスで増えたとき（ポンと弾ませる）
+function hudScore(total, bump) {
+  if (total !== HUD.score) { HUD.score = total; HUD.$scoreTxt.textContent = 'SCORE ' + total; }
+  if (bump) hudRestartAnim(HUD.$score, 'bump');
+}
+function hudPop(text) {
+  const el = HUD.pops[HUD.popI++ % HUD.pops.length];
+  el.textContent = text; hudRestartAnim(el, 'on');
+}
+function hudGreat(text, big) {
+  HUD.$great.textContent = text; HUD.$great.classList.toggle('big', !!big); hudRestartAnim(HUD.$great, 'on');
+}
+function hudTitleBest(best) { HUD.$titleBest.textContent = 'BEST SCORE ' + best; }
+
+// GAME OVER / CLEAR の結果（距離・スコア・ベスト・NEW RECORD!）。F は flow
+function hudResult(kind, F) {
+  const over = kind === 'over';
+  (over ? HUD.$overDist : HUD.$clearDist).textContent = '逃走距離：' + F.dist + 'm';
+  (over ? HUD.$overScore : HUD.$clearScore).textContent = F.score;
+  (over ? HUD.$overBestN : HUD.$clearBestN).textContent = F.best;
+  (over ? HUD.$overBest : HUD.$clearBest).classList.toggle('rec', F.newRecord);
+  (over ? HUD.$over : HUD.$clear).classList.add('on');
+}
+
+// 再スタート：文字・結果画面をすべて消す
+function hudReset() {
+  HUD.score = -1;
+  [HUD.$great, HUD.$boom2, HUD.$relief, HUD.$over, HUD.$clear, ...HUD.pops].forEach(el => el.classList.remove('on'));
+  HUD.$flash.classList.remove('mega'); HUD.$score.classList.remove('bump');
+}
 // ===== キー入力（PC のみ） =====
 const KEYS = { left: false, right: false, jumpQ: false };
 const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
@@ -1665,7 +2072,7 @@ function bindInput() {
   addEventListener('blur', () => { KEYS.left = KEYS.right = KEYS.jumpQ = false; });
 }
 // ===== サウンド（WebAudio で生成。外部ファイルなし）。最初のキー押下で開始、M でミュート =====
-const SND = { ctx: null, master: null, rumbleG: null, hissG: null, muted: false, noiseBuf: null };
+const SND = { ctx: null, master: null, rumbleG: null, hissG: null, muted: false, noiseBuf: null, volMul: 1 };   // volMul＝火山の持続音の倍率（クリア演出で変える）
 
 function sndNoise(ctx, brown) {
   const n = ctx.sampleRate * 2, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
@@ -1725,8 +2132,8 @@ function sndBoom() {
 function sndUpdate(fx) {
   if (!SND.ctx || !SND.rumbleG) return;
   const S = CFG.sound, now = SND.ctx.currentTime;
-  SND.rumbleG.gain.setTargetAtTime(S.rumbleIdle + (S.rumbleErupt - S.rumbleIdle) * fx.k, now, 0.3);
-  SND.hissG.gain.setTargetAtTime(0.18 * fx.k, now, 0.4);
+  SND.rumbleG.gain.setTargetAtTime((S.rumbleIdle + (S.rumbleErupt - S.rumbleIdle) * fx.k) * SND.volMul, now, 0.3);
+  SND.hissG.gain.setTargetAtTime(0.18 * fx.k * SND.volMul, now, 0.4);
 }
 
 
@@ -1880,6 +2287,59 @@ function sndHit(power) {
   o.connect(f); o.start(t + 0.04); l.start(t + 0.04); o.stop(t + 0.62); l.stop(t + 0.62);
 }
 
+
+// ===== Phase 8 追加のサウンド =====
+function sndSetVolcanoMul(m) { SND.volMul = m; }
+
+// 「キラーン」：ギリギリ回避（大型は少し長く低い音も重ねる）
+function sndGreat(big) {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, v = 0.9;
+  sndTone(c, SND.master, t, 0.22, 'triangle', 1320, 1760, 0.2 * v, 0.006);
+  sndTone(c, SND.master, t + 0.07, 0.3, 'triangle', 1760, 2349, 0.18 * v, 0.006);
+  sndTone(c, SND.master, t + 0.02, 0.18, 'sine', 3520, 3520, 0.07 * v, 0.004);
+  if (big) { sndTone(c, SND.master, t + 0.14, 0.45, 'triangle', 988, 1318, 0.2 * v, 0.01); sndTone(c, SND.master, t, 0.3, 'sine', 330, 247, 0.22 * v, 0.01); }
+}
+// 恐竜の「キュッ」：驚いた短い声
+function sndSurprise() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime;
+  sndTone(c, SND.master, t, 0.22, 'sawtooth', 520, 1050, 0.12, 0.01);
+  sndTone(c, SND.master, t + 0.2, 0.3, 'sawtooth', 900, 380, 0.1, 0.01);
+}
+// 巨大な大爆発「ドゴォォォォォン！！！」：通常の大噴火より長く・重く。ノイズ（高→低）＋超低音＋地鳴りの余韻
+function sndMegaBoom() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, g = c.createGain();
+  g.gain.setValueAtTime(1.3, t); g.gain.exponentialRampToValueAtTime(0.001, t + 5.2); g.connect(SND.loud);
+  const s = c.createBufferSource(); s.buffer = SND.white; const f = c.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(5200, t); f.frequency.exponentialRampToValueAtTime(55, t + 4.2);
+  s.connect(f); f.connect(g); s.start(t); s.stop(t + 5.3);
+  const o = c.createOscillator(), og = c.createGain(); o.type = 'sine';
+  o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(18, t + 3.2);
+  og.gain.setValueAtTime(2.0, t); og.gain.exponentialRampToValueAtTime(0.001, t + 4.4); o.connect(og); og.connect(SND.loud); o.start(t); o.stop(t + 4.5);
+  const o2 = c.createOscillator(), o2g = c.createGain(); o2.type = 'sawtooth';   // ガリッと割れる低い唸り
+  o2.frequency.setValueAtTime(70, t); o2.frequency.exponentialRampToValueAtTime(26, t + 2.4);
+  o2g.gain.setValueAtTime(0.5, t); o2g.gain.exponentialRampToValueAtTime(0.001, t + 2.6);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220; o2.connect(lp); lp.connect(o2g); o2g.connect(SND.loud); o2.start(t); o2.stop(t + 2.7);
+  for (let i = 0; i < 5; i++) sndBurst(c, SND.loud, t + 0.35 + i * 0.4 + Math.random() * 0.1, 0.5, 'lowpass', 900, 70, 0.4 - i * 0.05, 0.7);   // 続けてドン、ドン
+}
+// ため息「ふぅ……」：息のノイズがふくらんで消える
+function sndSigh() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, g = c.createGain();
+  g.gain.setValueAtTime(0.0002, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.45); g.gain.exponentialRampToValueAtTime(0.0002, t + 1.5); g.connect(SND.master);
+  const s = c.createBufferSource(); s.buffer = SND.white; const f = c.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8;
+  f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(380, t + 1.4);
+  s.connect(f); f.connect(g); s.start(t); s.stop(t + 1.55);
+}
+// クリアのファンファーレ：やさしく上がる 3 音
+function sndFanfare() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime;
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => { sndTone(c, SND.master, t + i * 0.16, i === 3 ? 0.9 : 0.4, 'triangle', f, f, 0.2, 0.01); sndTone(c, SND.master, t + i * 0.16, i === 3 ? 0.9 : 0.4, 'sine', f / 2, f / 2, 0.12, 0.01); });
+}
+
 function sndToggleMute() {
   SND.muted = !SND.muted;
   if (SND.out) SND.out.gain.setTargetAtTime(SND.muted ? 0 : CFG.sound.master, SND.ctx.currentTime, 0.05);
@@ -1893,18 +2353,21 @@ function bindSound() {
 // ===== 起動・メインループ =====
 (function () {
   if (typeof THREE === 'undefined') { document.getElementById('hint').textContent = 'three.js を読み込めませんでした（ネット接続を確認してください）'; return; }
-  buildWorld(); buildVolcano(); buildRocks(); buildMagma(); buildObstacles();
+  buildWorld(); buildVolcano(); buildRocks(); buildMagma(); buildObstacles(); buildCave(); hudBuild();
   const $boom = document.getElementById('boom'), $flash = document.getElementById('flash'), $scream = document.getElementById('scream');
   const $oops = document.getElementById("oops");
   let erupted = false, fx = volcanoState(0);
   const dino = buildDino(); WORLD.scene.add(dino.group);
   const G = newGame(), P = G.P, M = G.M, RS = G.RS, OB = G.OB;
+  const F = newFlow(bestStorage());   // ゲーム全体の流れ（title → playing → over / clear）。localStorage が使えなくても動く
   fxBuild(G, dino);
   const newSeed = () => (Math.random() * 2147483647) | 0;
   OB.seed = newSeed();   // 障害物の配置の種（毎回変わる。リセット時も新しくする）
-  const $dist = document.getElementById('dist'), $danger = document.getElementById('danger'), $clear = document.getElementById('clear'), $clearDist = document.getElementById('clearDist');
+  const $dist = document.getElementById('dist'), $danger = document.getElementById('danger');
   let shownDanger = -1;
-  let shown = -1;
+  let shown = -1, overShown = false, sighT = 0;
+  const headPos = new THREE.Vector3();
+  hudTitleBest(F.best);
 
   function showScream() { $scream.classList.remove('on'); void $scream.offsetWidth; $scream.classList.add('on'); }
 
@@ -1934,20 +2397,56 @@ function bindSound() {
     $scream.classList.remove('on');
   }
 
-  // R：全状態を初期化して最初から（噴火・噴石・マグマ・恐竜・揺れ・フラッシュ・音・粒子）。オブジェクトは作り直さない
+  // ギリギリ回避：キラッとした火花（金色の粒を恐竜のまわりから）
+  function sparkle(big) {
+    const n = big ? 46 : 26;
+    for (let i = 0; i < n; i++) {
+      const a = rnd(0, 6.283), sp = rnd(3, 9) * (big ? 1.3 : 1);
+      fxEmit(ROCKS.sparks, P.x + Math.cos(a) * 0.8, rnd(0.8, 2.6), P.z + Math.sin(a) * 0.8, Math.cos(a) * sp, rnd(2, 8), Math.sin(a) * sp, rnd(0.5, 0.9), rnd(1.0, 2.0), 1, 0);
+    }
+  }
+  function onScoreEvent(e) {
+    if (e.kind === 'great' || e.kind === 'big') { hudGreat(e.text, e.kind === 'big'); sndGreat(e.kind === 'big'); sparkle(e.kind === 'big'); }
+    hudPop('+' + e.pts + (e.kind === 'combo' || e.kind === 'magma' ? ' ' + e.text : ''));
+  }
+
+  // クリア演出の出来事（clearStep が名前を返す）
+  function onClearEvent(e) {
+    if (e === 'boom') {   // 火山が最大の大爆発：閃光・文字・揺れ（update で毎フレーム）・音・噴煙と火柱の一斉噴出
+      sndMegaBoom(); fxDuck(FXS, 0.75, 0.8); volcanoMegaBurst(); $flash.classList.add('mega'); hudRestartAnim(HUD.$boom2, 'on');
+      setTimeout(sndSurprise, 120);
+    } else if (e === 'relief-text') {   // 「……危なかった」＋ため息
+      hudRestartAnim(HUD.$relief, 'on'); sndSigh(); sighT = 1.0;
+    } else if (e === 'stage:result') {
+      hudResult('clear', F); sndFanfare();
+    } else if (e === 'skip') {   // Space で飛ばした：途中の文字を消す
+      HUD.$boom2.classList.remove('on'); HUD.$relief.classList.remove('on'); $flash.classList.remove('mega'); sighT = 0;
+    }
+  }
+
+  // R：全状態を初期化して最初から（噴火・噴石・マグマ・恐竜・揺れ・フラッシュ・音・粒子）。タイトルは経由しない。オブジェクトは作り直さない
   function restart() {
-    resetGame(G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1;
+    flowRestart(F, G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1; overShown = false; sighT = 0;
     KEYS.left = KEYS.right = KEYS.jumpQ = false;
     resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
-    dino.phase = 0; dino.air = 0; dino.group.visible = true;
-    [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); $clear.classList.remove('on'); shownDanger = -1; $flash.style.opacity = 0;
-    sndMagmaUpdate(0); fxResetView();
+    dino.phase = 0; dino.air = 0; dino.group.visible = true; dino.clr = null; dino.idle = false;
+    [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); hudReset(); shownDanger = -1; $flash.style.opacity = 0;
+    sndMagmaUpdate(0); sndSetVolcanoMul(1); fxResetView();
+  }
+
+  // Space：タイトルから開始。このキー入力で WebAudio も resume される（bindSound が先に呼ぶ）
+  function startGame() {
+    if (!flowStart(F)) return false;
+    KEYS.jumpQ = false; hudMode('playing'); fxRestartHint();
+    return true;
   }
 
   function update(dt) {
-    // 吹き飛び・起き上がり中は stepPlayer が入力を無視する。dead の間は stepGame が前進・操作・噴石の新規生成を止める
-    const ev = stepGame(G, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
+    // 吹き飛び・起き上がり中は stepPlayer が入力を無視する。dead の間は stepGame が前進・操作・噴石の新規生成を止める。title の間は何も進めない
+    const ev = stepFlow(F, G, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
     KEYS.jumpQ = false;
+    const mode = F.mode, C = F.clear, title = mode === 'title', playing = mode === 'playing', clearing = mode === 'clear';
+    hudMode(mode);
     fx = volcanoState(P.time);
     const dif = difficultyAt(P.time - CFG.volcano.eruptDelay), em = eruptionMul(dif.s);   // 難易度：噴火の迫力は強度とともに最大へ
     if (fx.state === 'erupting') { fx.k *= em; fx.smoke *= em; }
@@ -1955,39 +2454,58 @@ function bindSound() {
     ev.obstacle.hits.forEach(onObstacleHit);
     ev.landed.forEach(l => { rockImpact(l.rock, l.hit); if (l.hit) { showScream(); sndScream(); fxOnHit('rock', l.rock.size); } });
     if (ev.died) onDeath();
-    const gap = magmaGap(M, P), alive = M.phase === 'playing';
+    ev.clear.forEach(onClearEvent);
+    const se = scoreTake(F.S); se.forEach(onScoreEvent);
+    const gap = magmaGap(M, P), alive = playing && M.phase === 'playing';
+    // クリア演出の見た目：恐竜のポーズ・火山の増し・火山の音量・マグマが静まる
+    dino.idle = title;
+    dino.clr = clearing ? { stage: C.stage, t: C.t, turn: clearTurn(C), shock: clearShock(C), relief: clearRelief(C) } : null;
+    VOL.mega = clearing ? clearMega(C) : 0; MAG.calm = clearing;
+    sndSetVolcanoMul(clearing ? clearVolMul(C) : title ? 0.7 : 1);
+    WORLD.viewAz = flowCamAz(F); WORLD.viewUp = clearing ? clearTilt(C) : 0;
+    if (sighT > 0) {   // ため息：口もとから白っぽい息
+      sighT -= dt; dino.head.getWorldPosition(headPos);
+      if (Math.random() < dt * 40) fxEmit(ROCKS.dust, headPos.x + rnd(-0.2, 0.2), headPos.y - 0.2, headPos.z + 0.9, rnd(-0.4, 0.4), rnd(0.2, 0.8), rnd(1.2, 2.4), rnd(0.9, 1.4), rnd(0.7, 1.2), 0.45, 0);
+    }
     updateRocksFx(dt);
-    fxFrame(dt, { alive, gap, dif, fx });
+    fxFrame(dt, { alive, gap, dif, fx, running: alive || (clearing && C.stage === 'runin') });
     updateDino(dino, P, dt);
     updateWorld(P, dt);
-    if (fx.state === 'erupting' && !erupted) { erupted = true; $boom.classList.add('on'); sndBoom(); fxDuck(FXS, CFG.fx.duck.boom, 0.3); }
+    if (fx.state === 'erupting' && !erupted) { erupted = true; if (playing) { $boom.classList.add('on'); sndBoom(); fxDuck(FXS, CFG.fx.duck.boom, 0.3); } }
     updateVolcano(P, dt, fx);
     updateMagma(P, M, dt);
-    if (dif.stage !== shownDanger) { shownDanger = dif.stage; fxStage(dif.stage); $danger.textContent = '危険度：' + dif.label; $danger.className = 'd' + dif.stage; }
-    if (M.phase === 'clear' && M.clearT > 0.8 && !$clear.classList.contains('on')) { $clearDist.textContent = '逃走距離：' + Math.floor(P.dist) + 'm'; $clear.classList.add('on'); }
+    MAG.mesh.position.y = clearing ? -clearLavaSink(C) : 0;   // クリア後、マグマは引いて沈む
+    if (playing && dif.stage !== shownDanger) { shownDanger = dif.stage; fxStage(dif.stage); $danger.textContent = '危険度：' + dif.label; $danger.className = 'd' + dif.stage; }
+    if (mode === 'over' && !overShown && M.deadT >= CFG.magma.overlayDelay) { overShown = true; hudResult('over', F); }
     sndUpdate(fx);
-    sndMagmaUpdate(alive ? magmaProx(gap, CFG.magma.audibleRange) : M.phase === 'clear' ? 0 : Math.max(0, 0.6 - M.deadT * 0.3));
-    $flash.style.opacity = fx.flash;
+    sndMagmaUpdate(alive ? magmaProx(gap, CFG.magma.audibleRange) : M.phase === 'dead' ? Math.max(0, 0.6 - M.deadT * 0.3) : 0);
+    $flash.style.opacity = Math.max(fx.flash, clearing ? clearFlash(C) : 0);
     const T = VOL.t;   // 揺れの位相（P.time は死亡で止まるので別の時計を使う）
-    // 画面揺れは全要因を fxCamera でまとめて合成（位置のみ・二乗和の平方根で合成し上限あり）：噴火 / 噴石の着弾・被弾 / 最終逃走の常時 / マグマ接近
+    // 画面揺れは全要因を fxCamera でまとめて合成（位置のみ・二乗和の平方根で合成し上限あり）：噴火 / 噴石の着弾・被弾 / 最終逃走の常時 / マグマ接近 / クリアの大爆発
     const finalS = alive && dif.e > CFG.difficulty.shake.from ? finalShake(dif.e) : 0;
     const magS = alive && M.active ? CFG.magma.shakeAmp * Math.pow(magmaProx(gap, CFG.magma.shakeRange), 2) : 0;
-    fxCamera(T, [fx.shake, ROCKS.shake, finalS, magS]);
-    const m = Math.floor(P.dist);
+    fxCamera(T, [fx.shake, ROCKS.shake, finalS, magS, clearing ? clearShakeAmp(C) : 0]);
+    const m = Math.floor(clearing || mode === 'over' ? F.dist || P.dist : P.dist);
     if (m !== shown) { shown = m; $dist.textContent = '距離：' + m + 'm'; }
+    hudScore(scoreTotal(F.S, P, clearing || mode === 'over' ? F.dist : null), se.length > 0);
   }
 
   bindInput(); bindSound();
-  addEventListener('keydown', e => { if (e.code === 'KeyR' && !e.repeat && M.phase !== 'playing') restart(); });
-  // 確認用：状態の読み取りと、1 フレーム進める口。dropRock(size, x, z, warn?) = 指定位置へ今すぐ噴石を落とす（warn は着弾までの秒の上書き）
-  window.GAME = { G, P, M, KEYS, CFG, FXS, FXV, dino, WORLD, VOL, SND, RS, OB, OBS, ROCKS, MAG, get fx() { return fx; },
+  addEventListener('keydown', e => {
+    if (e.repeat) return;
+    if (e.code === 'Space') { if (F.mode === 'title') startGame(); else if (F.mode === 'clear') clearSkip(F.clear, P).forEach(onClearEvent); }
+    else if (e.code === 'KeyR' && flowCanRestart(F)) restart();
+  });
+  // 確認用：状態の読み取りと、1 フレーム進める口。dropRock(size, x, z, warn?) = 指定位置へ今すぐ噴石を落とす（warn は着弾までの秒の上書き）。start() = タイトルから開始
+  window.GAME = { G, P, M, F, KEYS, CFG, FXS, FXV, dino, WORLD, VOL, SND, RS, OB, OBS, ROCKS, MAG, HUD, CAVE, get fx() { return fx; },
     step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); },
-    restart,
+    restart, start: startGame,
     dropRock: (size, x, z, warn) => spawnRock(RS, size, x, z, null, warn),
     dropRockOnDino: (size, warn) => { const w = warn || CFG.rock.sizes[size].warn; return spawnRock(RS, size, P.x, P.z - P.speed * w, null, warn); } };
   let last = performance.now();
+  document.addEventListener('visibilitychange', () => { last = performance.now(); });   // タブに戻ったとき、離れていた時間ぶんの dt にならない
   (function loop(now) {
-    const dt = Math.max(0, Math.min(CFG.dt.max, (now - last) / 1000)); last = now;
+    const dt = Math.max(0, Math.min(CFG.dt.max, (now - last) / 1000)); last = now;   // 1 フレームの最大秒（タブ復帰時の飛び防止）
     if (fxHitstopStep(FXS, dt)) { /* hitstop: game time paused, rendering continues */ }
     else update(dt);
     WORLD.renderer.render(WORLD.scene, WORLD.camera);

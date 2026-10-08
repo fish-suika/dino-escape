@@ -30,7 +30,7 @@ function pflush(P) { ['position', 'aSize', 'aAlpha', 'aColor'].forEach(n => { P.
 
 function buildVolcano() {
   const V = CFG.volcano, scene = WORLD.scene;
-  VOL.scaleU = { value: 360 };
+  VOL.scaleU = { value: 360 }; VOL.mega = 0;
   const tex = makeSoftTexture();
   const group = new THREE.Group(); scene.add(group);   // プレイヤーの z に追従するフレーム
   VOL.group = group;
@@ -40,7 +40,7 @@ function buildVolcano() {
   const p = cg.attributes.position;
   for (let i = 0; i < p.count; i++) { if (p.getY(i) < V.height / 2 - 0.5) { p.setX(i, p.getX(i) * (1 + Math.sin(i * 12.9) * 0.06)); p.setZ(i, p.getZ(i) * (1 + Math.cos(i * 7.3) * 0.06)); } }
   cg.computeVertexNormals();
-  const mountG = new THREE.Group(); mountG.position.y = V.height / 2;
+  const mountG = new THREE.Group(); mountG.position.set(0, V.height / 2, V.dist);   // 山は後方 V.dist の位置（Phase 8 で修正：以前は恐竜と同じ z に置いてしまい、中から見ると面が裏返って見えなかった）
   mountG.add(new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ color: 0x2b1e1b, flatShading: true, fog: false })));
   // 溶岩の筋（火口縁から斜面に沿って流れる）
   const alpha = Math.atan((V.radius - V.craterR) / V.height), slant = Math.hypot(V.radius - V.craterR, V.height);
@@ -54,7 +54,7 @@ function buildVolcano() {
   }
   // 火口の光
   const crater = new THREE.Mesh(new THREE.CircleGeometry(V.craterR, 20), new THREE.MeshBasicMaterial({ color: 0xff6a1a, fog: false }));
-  crater.rotation.x = -Math.PI / 2; crater.position.y = V.height + 0.2;
+  crater.rotation.x = -Math.PI / 2; crater.position.set(0, V.height + 0.2, V.dist);
   const vg = new THREE.Group(); vg.add(mountG, crater); group.add(vg); VOL.vg = vg;
   VOL.craterY = V.height;
 
@@ -90,8 +90,9 @@ function spawnSmoke(S, i, k, level) {
   const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * V.craterR * 0.9;
   S.pos[i * 3] = Math.cos(a) * r; S.pos[i * 3 + 1] = VOL.craterY; S.pos[i * 3 + 2] = V.dist + Math.sin(a) * r;
   // vel: x 横ばらつき / y = 立ちのぼる高さ / z = 手前への流れ
-  S.vel[i * 3] = rnd(-7, 7) * (0.3 + k); S.vel[i * 3 + 1] = rnd(45, 75) + k * rnd(0, 70); S.vel[i * 3 + 2] = -V.windSpeed * rnd(0.55, 1.1) * (0.4 + 0.6 * k);
-  S.s0[i] = rnd(22, 46) * (0.5 + 0.8 * level); S.a0[i] = rnd(0.5, 0.9); S.seed[i] = k;
+  const mg = 1 + CFG.clear.mega.smokeMul * VOL.mega;   // クリアの大爆発：もっと高く・大きく
+  S.vel[i * 3] = rnd(-7, 7) * (0.3 + k) * mg; S.vel[i * 3 + 1] = (rnd(45, 75) + k * rnd(0, 70)) * mg; S.vel[i * 3 + 2] = -V.windSpeed * rnd(0.55, 1.1) * (0.4 + 0.6 * k);
+  S.s0[i] = rnd(22, 46) * (0.5 + 0.8 * level) * (1 + 0.5 * VOL.mega); S.a0[i] = rnd(0.5, 0.9); S.seed[i] = k;
 }
 function spawnFire(S, i) {
   const V = CFG.volcano; S.age[i] = 0;
@@ -99,12 +100,13 @@ function spawnFire(S, i) {
   S.life[i] = col ? rnd(1.2, 2) : rnd(2, 3.6);
   const a = rnd(0, 6.28), r = Math.sqrt(Math.random()) * V.craterR * 0.8;
   S.pos[i * 3] = Math.cos(a) * r; S.pos[i * 3 + 1] = VOL.craterY; S.pos[i * 3 + 2] = V.dist + Math.sin(a) * r;
-  S.vel[i * 3] = rnd(-1, 1) * (col ? 6 : 28); S.vel[i * 3 + 1] = col ? rnd(25, 45) : rnd(45, 90); S.vel[i * 3 + 2] = rnd(-1, 1) * (col ? 6 : 28) - 8;
-  S.s0[i] = col ? rnd(12, 22) : rnd(2.5, 5.5); S.a0[i] = col ? 0.8 : 1; S.seed[i] = col ? 1 : 0;
+  const mg = 1 + 0.6 * VOL.mega;
+  S.vel[i * 3] = rnd(-1, 1) * (col ? 6 : 28) * mg; S.vel[i * 3 + 1] = (col ? rnd(25, 45) : rnd(45, 90)) * mg; S.vel[i * 3 + 2] = (rnd(-1, 1) * (col ? 6 : 28) - 8) * mg;
+  S.s0[i] = (col ? rnd(12, 22) : rnd(2.5, 5.5)) * (1 + 0.5 * VOL.mega); S.a0[i] = col ? 0.8 : 1; S.seed[i] = col ? 1 : 0;
 }
 
 function stepSmoke(S, dt, fx) {
-  S.budget += S.max / CFG.volcano.smokeLife * fx.smoke * dt;
+  S.budget += S.max / CFG.volcano.smokeLife * fx.smoke * dt * (1 + CFG.clear.mega.smokeMul * VOL.mega);
   for (let i = 0; i < S.max; i++) {
     if (S.age[i] >= S.life[i]) { if (S.budget >= 1) { S.budget -= 1; spawnSmoke(S, i, fx.k, fx.smoke); } else { S.alpha[i] = 0; continue; } }
     S.age[i] += dt; const f = S.age[i] / S.life[i], ymax = S.vel[i * 3 + 1];
@@ -119,7 +121,7 @@ function stepSmoke(S, dt, fx) {
   }
 }
 function stepFire(S, dt, fx) {
-  S.budget += S.max / 2.6 * fx.k * dt;
+  S.budget += S.max / 2.6 * fx.k * dt * (1 + CFG.clear.mega.fireMul * VOL.mega);
   for (let i = 0; i < S.max; i++) {
     if (S.age[i] >= S.life[i]) { if (S.budget >= 1) { S.budget -= 1; spawnFire(S, i); } else { S.alpha[i] = 0; continue; } }
     S.age[i] += dt; const f = S.age[i] / S.life[i], col = S.seed[i] > 0.5;
@@ -188,6 +190,16 @@ function updateVolcano(P, dt, fx) {
 
 // 再スタート用：噴火前の状態へ（煙・火の粒を消し、空と霧を元の色に戻す）
 function resetVolcano() {
-  VOL.t = 0; VOL.skyK = -1;
+  VOL.t = 0; VOL.skyK = -1; VOL.mega = 0;
   [VOL.smoke, VOL.fire].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.budget = 0; });
+}
+
+// クリアの大爆発の瞬間：火柱・火花と黒煙をいっぺんに吹き上げる（既存の粒の枠を古いものから上書き。粒の上限は変えない）
+function volcanoMegaBurst() {
+  const M = CFG.clear.mega, mg0 = VOL.mega;
+  VOL.mega = 1;
+  const fire = VOL.fire, smoke = VOL.smoke;
+  for (let n = 0; n < M.burst; n++) { const i = (fire.burstI = ((fire.burstI || 0) + 1) % fire.max); spawnFire(fire, i); fire.age[i] = rnd(0, 0.15); }
+  for (let n = 0; n < M.burst * 0.5; n++) { const i = (smoke.burstI = ((smoke.burstI || 0) + 1) % smoke.max); spawnSmoke(smoke, i, 1, 1); smoke.age[i] = rnd(0, 0.4); }
+  VOL.mega = mg0 > 0 ? mg0 : 1;
 }

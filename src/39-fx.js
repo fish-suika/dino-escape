@@ -72,7 +72,7 @@ function fxStage(stage) {
 function fxFrame(dt, c) {
   const G = FXV.G, P = G.P, d = FXV.dino, k = fxInt(), F = CFG.fx;
   FXV.t += dt;
-  const run = P.state === 'run' && c.alive;
+  const run = P.state === 'run' && (c.running != null ? c.running : c.alive);   // running：クリアの走り込み中も足音・土煙は出す
   // 恐竜の表情：近い危険マーカー / 近いマグマ
   const near = fxNearRock(G.RS.rocks, P, F.fear.range);
   FXV.fear += ((run ? near.nearness : 0) - FXV.fear) * (1 - Math.exp(-10 * dt));

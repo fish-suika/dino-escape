@@ -106,7 +106,10 @@ function stepObstacles(OB, P, dt) {
   if (OB.off) { OB.prevZ = P.z; return ev; }
   const need = P.dist + O.aheadDist;
   while (OB.genDist < need) {
-    for (const ob of planObstacles(OB.seed, -OB.genDist, -(OB.genDist + O.chunk), OB.level)) { ob.id = OB.nextId++; OB.list.push(ob); ev.spawned.push(ob); }
+    for (const ob of planObstacles(OB.seed, -OB.genDist, -(OB.genDist + O.chunk), OB.level)) {
+      if (ob.dist >= CFG.goal.distance - CFG.clear.safeZone) continue;   // ゴールの手前から先は洞窟（安全地帯）。障害物は置かない
+      ob.id = OB.nextId++; OB.list.push(ob); ev.spawned.push(ob);
+    }
     OB.genDist += O.chunk;
   }
   const n0 = OB.list.length;
