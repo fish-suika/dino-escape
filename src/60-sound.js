@@ -10,10 +10,10 @@ function sndNoise(ctx, brown) {
 function sndLoop(buf) { const s = SND.ctx.createBufferSource(); s.buffer = buf; s.loop = true; return s; }
 
 function sndStart() {
-  if (SND.ctx) { if (SND.ctx.state === 'suspended') SND.ctx.resume(); return; }
+  if (SND.ctx) { if (SND.ctx.state === 'suspended' && !SND.paused) SND.ctx.resume(); return; }   // 一時停止中はキー入力で勝手に再開しない
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
   let c; try { c = new AC(); } catch (e) { return; }
-  SND.ctx = c;
+  SND.ctx = c; if (SND.paused) c.suspend();
   SND.out = c.createGain(); SND.out.gain.value = SND.muted ? 0 : CFG.sound.master; SND.out.connect(c.destination);
   SND.master = c.createGain(); SND.master.gain.value = 1; SND.master.connect(SND.out); SND.loud = SND.out;   // master=ダッキングされるバス / loud=大きな音（爆発・着弾・被弾）はダッキングを受けない
   SND.brown = sndNoise(c, true); SND.white = sndNoise(c, false);
@@ -278,10 +278,16 @@ function sndFanfare() {
 function sndToggleMute() {
   SND.muted = !SND.muted;
   if (SND.out) SND.out.gain.setTargetAtTime(SND.muted ? 0 : CFG.sound.master, SND.ctx.currentTime, 0.05);
-  const el = document.getElementById('mute'); if (el) el.textContent = SND.muted ? '♪ OFF (M)' : '♪ ON (M)';
+  sndMuteLabel();
 }
 
 function bindSound() {
   addEventListener('keydown', e => { sndStart(); if (e.code === 'KeyM' && !e.repeat) sndToggleMute(); });
   addEventListener('pointerdown', sndStart);
+}
+function sndMuteLabel() { const el = document.getElementById('mute'); if (el) el.textContent = SND.muted ? TEXT.muteOff : TEXT.muteOn; }
+// 一時停止：WebAudio ごと止める（ランブル・火山の持続音・鳴りかけの効果音も止まる）。再開で続きから
+function sndSetPaused(p) {
+  SND.paused = !!p; const c = SND.ctx; if (!c) return;
+  if (p) { if (c.state === 'running') c.suspend(); } else if (c.state === 'suspended') c.resume();
 }

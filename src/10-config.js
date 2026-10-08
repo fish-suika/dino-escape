@@ -9,6 +9,18 @@ const CFG = {
   world: { groundSize: 600, texRepeat: 40, fogColor: 0x5a2f26, fogNear: 50, fogFar: 260, clearHalf: 11,
            rocks: 46, hills: 14, spawnAhead: 220, spawnBehind: 30, spread: 110 },   // 地面の大きさ / テクスチャ繰り返し / フォグ / 装飾を置かない中央の半幅（遊べる範囲の外側）/ 装飾の数 / 先に出す距離・消す距離 / 左右の散らばり幅
   dino: { runFreq: 0.55, legSwing: 0.95, tailSwing: 0.35, bob: 0.09, tuck: 1.0, lean: 0.008, leanMax: 0.35 },   // 脚ふりの速さ（距離あたり）/ 脚の振れ幅 / 尻尾の揺れ / 上下の弾み / ジャンプ時の足たたみ / 横移動の傾き（横速度あたり）と上限
+  craterLook: {   // クレーターの見た目（当たり判定の半径 r = 縁の山の頂点。窪みは半径 r の内側）
+    depth: 0.6, rimH: 0.28,                          // 窪みの深さ(u) / 縁の盛り上がりの高さ(u)。ジャンプ（clearY 0.5）で越えられる大きさ
+    rim: 0xd2cdc7, rimSlope: 0x8c7b70, wall: 0x35190f, floor: 0x120504,   // 縁の頂点（明るい灰）/ 縁の外の斜面 / 内側の壁 / 底（暗い赤茶）
+    debris: 8, scorch: 0.45, smoke: 0.22              // 縁のまわりの岩・土塊の数 / 焦げ跡の濃さ / 煙の濃さ
+  },
+  dinoLook: {   // 恐竜の見た目（色は 0xRRGGBB）。体は頂点カラーの塗り分け（背中=濃い緑 / 腹=クリーム / 縞）＋トゥーン風の段階影＋縁のリムライト
+    back: 0x78c94c, backDark: 0x3f9a3c, stripe: 0x2c7a34, belly: 0xf3eaa8, foot: 0x4f9c3a, claw: 0xfff3d0,
+    spikeBase: 0xe86a24, spikeTip: 0xffd45a, blush: 0xf59a88, mouth: 0x7e2a36, tongue: 0xe0687a, lip: 0x34190f,
+    rim: 0xffb980, rimPower: 2.4, rimGain: 0.5,     // 縁のリムライト：色 / 絞り / 強さ
+    toon: [0.62, 0.82, 1.0],                          // トゥーンの明るさ 3 段階（暗→明）
+    tailRings: 26, tailLen: 3.3, tailBend: 1.25      // 尻尾：輪の数（多いほどなめらか）/ 長さ / 曲がりの強さ（元の2関節の回転に掛ける倍率）
+  },
   volcano: { eruptDelay: 4, rampTime: 6, idleSmoke: 0.25, dist: 300, recede: 0.04, radius: 120, height: 130, craterR: 18,   // 大噴火までの秒 / 噴火が最大強度になるまでの秒 / 噴火前の煙の量 / 後方の距離 / 遠ざかる率 / 山の大きさ
              boomDur: 2.2, shakeAmp: 0.32, shakeDur: 1.6, flashDur: 0.9, flashMax: 0.6,                                    // 「ドゴォォォン」表示秒 / 画面揺れの大きさ・秒 / 閃光の秒・最大濃さ
              smokeMax: 450, fireMax: 380, ashMax: 650, emberMax: 200, canopyMax: 170,                                                    // パーティクル上限（煙 / 火花 / 火山灰 / 降る火の粉）
@@ -52,7 +64,7 @@ const CFG = {
   // 難易度（Phase 6）。時間の基準は「噴火が始まってからの秒 e」（ゲーム開始から eruptDelay=4 秒後が e=0）。強度 s は 0〜1
   difficulty: {
     knots: [[0, 0], [20, 0.2], [40, 0.5], [60, 0.85], [78, 1]],     // [e 秒, 強度 s]：折れ線でつなぐ（境目で急に変わらない）。60 秒以降は最大へ向かい 78 秒で 1
-    stageFrom: [0, 20, 40, 60], labels: ['LOW', 'MID', 'HIGH', 'MAX'],   // チュートリアル / 通常 / 危険ゾーン / 最終逃走 の開始秒と、HUD の危険度の表記
+    stageFrom: [0, 20, 40, 60], labels: TEXT.dangerLabels,   // チュートリアル / 通常 / 危険ゾーン / 最終逃走 の開始秒と、HUD の危険度の表記
     rock: { interval0: 3.0, interval1: 0.5, curve: 1.0,               // 噴石の落下間隔（秒）：s=0 で 3.0 → s=1 で 0.5（ばらつき ±jitter は別）
             aim0: 0.3, aim1: 0.5,                                    // 恐竜を狙う噴石の割合（rock.aimChance の代わり）：序盤 0.3 → 終盤 0.5（レーン制では「恐竜のいるレーンを覆う」噴石）
             active0: 3, active1: 12,                                  // 同時に落ちている数の上限：3 → 12（描画の枠 rock.maxActive が頭打ち）
@@ -109,5 +121,6 @@ const CFG = {
     hintSec: 7                                                         // 操作ヒントを出しておく秒（その後フェードアウト）
   },
   sound: { vol: { fall: 0.8, impact: 1.0, scream: 0.8, step: 0.55, jump: 0.6, slide: 0.7, land: 0.7, stinger: 0.7, beep: 0.4, hit: 1.0 }, master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
+  pause: { stepSec: 1.0, steps: 3 },                                  // 一時停止から再開するときのカウントダウン：1 つ数える秒 / 数える回数（3→2→1）
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };

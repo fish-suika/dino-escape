@@ -2,7 +2,7 @@
 // mode：'title'（開始前。ゲームの時間は進まない）→ 'playing' → 'over'（マグマに飲まれた）/ 'clear'（クリア演出 → 結果）。R で 'playing' に戻る（タイトルは経由しない）。
 // 既存の stepGame / newGame は変えない：開始前かどうかはここ（flow）が持ち、title の間は stepGame を呼ばないだけ。
 function newFlow(store) {
-  const F = { mode: 'title', t: 0, playT: 0, fromTitle: false, store: store || null, best: 0, newRecord: false, score: 0, dist: 0, overT: 0, S: newScore(), clear: null };
+  const F = { mode: 'title', t: 0, playT: 0, fromTitle: false, store: store || null, best: 0, newRecord: false, score: 0, dist: 0, overT: 0, S: newScore(), clear: null, paused: false, resumeT: 0, pauseSel: 0, pauseT: 0 };
   F.best = bestRead(F.store);
   return F;
 }
@@ -19,7 +19,7 @@ function flowCanRestart(F) { return F.mode === 'over' || (F.mode === 'clear' && 
 // 全状態を初期化して playing へ（タイトルは経由しない）。G の中身を入れ替える
 function flowRestart(F, G, seed) {
   resetGame(G, seed);
-  F.mode = 'playing'; F.playT = 0; F.fromTitle = false; F.t = 0; F.overT = 0; F.newRecord = false; F.score = 0; F.dist = 0; F.S = newScore(); F.clear = null;
+  F.mode = 'playing'; F.playT = 0; F.fromTitle = false; F.t = 0; F.overT = 0; F.newRecord = false; F.score = 0; F.dist = 0; F.S = newScore(); F.clear = null; flowPauseReset(F);
   return F;
 }
 
@@ -33,6 +33,7 @@ function flowFinish(F, P) {
 // 1 フレーム進める。title の間は G に一切触れない。戻り値は stepGame と同じ形の ev（＋ ev.clear = クリア演出の出来事 ['stage:breathe', 'boom', …]）
 function stepFlow(F, G, inp, dt, rng) {
   const P = G.P;
+  if (F.paused) { flowPauseStep(F, dt); return flowEmptyEv(); }   // 一時停止中・再開カウントダウン中は G に一切触れない
   if (F.mode === 'title') { F.t += dt; return flowEmptyEv(); }
   if (F.mode === 'playing') {
     const v0 = P.speed, ev = stepGame(G, inp, dt, rng); ev.clear = [];
@@ -122,3 +123,43 @@ function clearVolMul(C) {   // 火山の音の倍率：安全地帯で小さく 
 function clearLavaSink(C) { return CFG.clear.lavaSink * smooth01(C.T / CFG.clear.lavaSinkSec); }
 // 大爆発を見上げる：爆発の瞬間から視線が上へ（噴煙が見えるように）。0〜1
 function clearTilt(C) { return C.i < 3 ? 0 : C.i === 3 ? smooth01(C.t / 0.7) : 1; }
+
+// ---- 一時停止（ポーズ）：playing のときだけ。paused の間は stepFlow が G に触れない。再開は 3→2→1 のカウントダウン（resumeT）を挟む ----
+// 項目：resume=再開 / restart=最初からやり直す / title=タイトルに戻る / mute=音の切り替え
+const PAUSE_ITEMS = ['resume', 'restart', 'title', 'mute'];
+function flowPauseReset(F) { F.paused = false; F.resumeT = 0; F.pauseSel = 0; F.pauseT = 0; }
+function flowMenuShown(F) { return F.paused && F.resumeT <= 0; }                 // メニューが出ている（カウントダウン中ではない）
+function flowCounting(F) { return F.paused && F.resumeT > 0; }
+function flowCountNum(F) { return F.resumeT > 0 ? Math.max(1, Math.min(CFG.pause.steps, Math.ceil(F.resumeT / CFG.pause.stepSec - 1e-9))) : 0; }   // 表示する数字（3,2,1）。0 ならなし
+// 一時停止する。playing 以外（タイトル・結果・クリア演出）では効かない。メニュー表示中の連打は何もしない（二重にならない）。カウントダウン中ならメニューへ戻す
+function flowPause(F) {
+  if (F.mode !== 'playing' || flowMenuShown(F)) return false;
+  F.paused = true; F.resumeT = 0; F.pauseSel = 0; return true;
+}
+// 再開のカウントダウンを始める（メニュー表示中だけ。連打しても 1 回）
+function flowResume(F) {
+  if (!flowMenuShown(F)) return false;
+  F.resumeT = CFG.pause.stepSec * CFG.pause.steps; return true;
+}
+function flowMenuMove(F, d) {
+  if (!flowMenuShown(F)) return false;
+  const n = PAUSE_ITEMS.length; F.pauseSel = ((F.pauseSel + d) % n + n) % n; return true;
+}
+function flowMenuSet(F, i) { if (!flowMenuShown(F) || i < 0 || i >= PAUSE_ITEMS.length) return false; F.pauseSel = i; return true; }
+// 選択中の項目を決定。resume はここで始める。それ以外は項目名を返し、呼び出し側（boot）が実行する（restart は flowRestart、title は flowToTitle）
+function flowMenuChoose(F, i) {
+  if (!flowMenuShown(F)) return null;
+  const item = PAUSE_ITEMS[i == null ? F.pauseSel : i]; if (!item) return null;
+  if (item === 'resume') flowResume(F);
+  return item;
+}
+function flowPauseStep(F, dt) {
+  F.pauseT += dt;
+  if (F.resumeT > 0) { F.resumeT -= dt; if (F.resumeT <= 0) { F.resumeT = 0; F.paused = false; } }
+}
+// タイトルに戻る：全状態を初期化して title へ（ベストは持ち越す）。Space でまた開始できる
+function flowToTitle(F, G, seed) {
+  resetGame(G, seed);
+  F.mode = 'title'; F.t = 0; F.playT = 0; F.fromTitle = false; F.overT = 0; F.newRecord = false; F.score = 0; F.dist = 0; F.S = newScore(); F.clear = null; flowPauseReset(F);
+  return F;
+}

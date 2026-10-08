@@ -4,6 +4,7 @@ cd "$(dirname "$0")"
 
 # --- 本体 ---
 cat src/00-head.html \
+    src/05-text.js \
     src/10-config.js \
     src/20-physics.js \
     src/25-volcano-logic.js \
@@ -31,6 +32,7 @@ cp dino-escape.html index.html   # GitHub Pages はルートの index.html を�
 
 # --- 検証ページ（three.js を使わない部分だけ） ---
 cat src/verify-head.html \
+    src/05-text.js \
     src/10-config.js \
     src/20-physics.js \
     src/25-volcano-logic.js \
@@ -46,6 +48,7 @@ cat src/verify-head.html \
     src/verify-phase6.js \
     src/verify-fx.js \
     src/verify-phase8.js \
+    src/verify-pause.js \
     src/verify-tail.js \
     src/99-tail.html > verify.html
 

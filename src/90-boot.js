@@ -1,6 +1,7 @@
 // ===== 起動・メインループ =====
 (function () {
-  if (typeof THREE === 'undefined') { document.getElementById('hint').textContent = 'three.js を読み込めませんでした（ネット接続を確認してください）'; return; }
+  textApply();
+  if (typeof THREE === 'undefined') { document.getElementById('hint').textContent = TEXT.noThree; return; }
   buildWorld(); buildVolcano(); buildRocks(); buildMagma(); buildObstacles(); buildCave(); hudBuild();
   const $boom = document.getElementById('boom'), $flash = document.getElementById('flash'), $scream = document.getElementById('scream');
   const $oops = document.getElementById("oops");
@@ -15,7 +16,7 @@
   let shownDanger = -1;
   let shown = -1, overShown = false, sighT = 0;
   const headPos = new THREE.Vector3();
-  hudTitleBest(F.best);
+  hudTitleBest(F.best); sndMuteLabel();
 
   function showScream() { $scream.classList.remove('on'); void $scream.offsetWidth; $scream.classList.add('on'); }
 
@@ -77,9 +78,9 @@
     flowRestart(F, G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1; overShown = false; sighT = 0;
     keysClear();
     resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
-    dino.phase = 0; dino.air = 0; dino.group.visible = true; dino.clr = null; dino.idle = false;
+    dino.phase = 0; dino.air = 0; dino.slide = 0; dino.group.visible = true; dino.clr = null; dino.idle = false;
     [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); hudReset(); shownDanger = -1; $flash.style.opacity = 0;
-    sndMagmaUpdate(0); sndSetVolcanoMul(1); fxResetView();
+    sndMagmaUpdate(0); sndSetVolcanoMul(1); fxResetView(); syncPause();
   }
 
   // Space：タイトルから開始。このキー入力で WebAudio も resume される（bindSound が先に呼ぶ）
@@ -88,6 +89,40 @@
     keysClear(); hudMode('playing'); fxRestartHint();
     return true;
   }
+
+  // 最初のタイトルへ：restart と同じ全初期化に加えて、タイトルの見た目（立ち姿・カメラ・ベスト表示）へ。ベストは残す
+  function toTitle() {
+    flowToTitle(F, G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1; overShown = false; sighT = 0;
+    keysClear();
+    resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
+    dino.phase = 0; dino.air = 0; dino.slide = 0; dino.group.visible = true; dino.clr = null; dino.idle = true;
+    [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); hudReset(); shownDanger = -1; $flash.style.opacity = 0;
+    sndMagmaUpdate(0); sndSetVolcanoMul(0.7); fxResetView(); hudMode('title'); hudTitleBest(F.best); syncPause();
+  }
+
+  // ---- 一時停止：F.paused の変化に合わせて、入力のロック・音の停止/再開・メニュー表示をそろえる ----
+  let prevPaused = false;
+  function syncPause() {
+    if (F.paused !== prevPaused) { prevPaused = F.paused; KEYS.locked = F.paused; keysClear(); sndSetPaused(F.paused); }
+    hudPause(F, SND.muted);
+  }
+  function doPause() { if (flowPause(F)) { syncPause(); return true; } return false; }
+  function pauseChoose(i) {   // メニューの決定（キーでもマウスでも）
+    const a = flowMenuChoose(F, i);
+    if (a === 'restart') restart(); else if (a === 'title') toTitle(); else if (a === 'mute') sndToggleMute();
+    syncPause();
+  }
+  function pauseToggle() {   // Esc / P：プレイ中は一時停止、メニューなら再開（カウントダウン開始）、カウントダウン中ならメニューへ戻る
+    if (!F.paused) doPause(); else if (flowMenuShown(F)) { flowResume(F); syncPause(); } else doPause();
+  }
+  function pauseFrame(dt) { stepFlow(F, G, { left: false, right: false, jump: false, slide: false }, dt); keysClear(); syncPause(); }
+  document.querySelectorAll('#pauseUI .pitems button').forEach(b => {
+    const i = +b.dataset.i;
+    b.addEventListener('mousedown', e => e.preventDefault());                 // ボタンにフォーカスを残さない（Space で二重に押されない）
+    b.addEventListener('pointerenter', () => { if (flowMenuSet(F, i)) syncPause(); });
+    b.addEventListener('click', () => pauseChoose(i));
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) doPause(); });   // タブを離れたら自動で一時停止（戻るとメニュー → 再開はカウントダウンつき）
 
   function update(dt) {
     // 吹き飛び・起き上がり中は stepPlayer が入力を無視する。dead の間は stepGame が前進・操作・噴石の新規生成を止める。title の間は何も進めない
@@ -123,7 +158,7 @@
     updateVolcano(P, dt, fx);
     updateMagma(P, M, dt);
     MAG.mesh.position.y = clearing ? -clearLavaSink(C) : 0;   // クリア後、マグマは引いて沈む
-    if (playing && dif.stage !== shownDanger) { shownDanger = dif.stage; fxStage(dif.stage); $danger.textContent = '危険度：' + dif.label; $danger.className = 'd' + dif.stage; }
+    if (playing && dif.stage !== shownDanger) { shownDanger = dif.stage; fxStage(dif.stage); $danger.textContent = TEXT.danger + dif.label; $danger.className = 'd' + dif.stage; }
     if (mode === 'over' && !overShown && M.deadT >= CFG.magma.overlayDelay) { overShown = true; hudResult('over', F); }
     sndUpdate(fx);
     sndMagmaUpdate(alive ? magmaProx(gap, CFG.magma.audibleRange) : M.phase === 'dead' ? Math.max(0, 0.6 - M.deadT * 0.3) : 0);
@@ -134,27 +169,36 @@
     const magS = alive && M.active ? CFG.magma.shakeAmp * Math.pow(magmaProx(gap, CFG.magma.shakeRange), 2) : 0;
     fxCamera(T, [fx.shake, ROCKS.shake, finalS, magS, clearing ? clearShakeAmp(C) : 0]);
     const m = Math.floor(clearing || mode === 'over' ? F.dist || P.dist : P.dist);
-    if (m !== shown) { shown = m; $dist.textContent = '距離：' + m + 'm'; }
+    if (m !== shown) { shown = m; $dist.textContent = TEXT.dist + m + 'm'; }
     hudScore(scoreTotal(F.S, P, clearing || mode === 'over' ? F.dist : null), se.length > 0);
   }
 
   bindInput(); bindSound();
   addEventListener('keydown', e => {
     if (e.repeat) return;
+    if (e.code === 'Escape' || e.code === 'KeyP') { if (F.mode === 'playing') pauseToggle(); return; }
+    if (F.paused) {   // 一時停止メニューの操作（↑↓ / W S で選択、Space / Enter で決定）
+      if (!flowMenuShown(F)) return;
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') { flowMenuMove(F, -1); syncPause(); }
+      else if (e.code === 'ArrowDown' || e.code === 'KeyS') { flowMenuMove(F, 1); syncPause(); }
+      else if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); pauseChoose(); }
+      return;
+    }
     if (e.code === 'Space') { if (F.mode === 'title') startGame(); else if (F.mode === 'clear') clearSkip(F.clear, P).forEach(onClearEvent); }
     else if (e.code === 'KeyR' && flowCanRestart(F)) restart();
   });
   // 確認用：状態の読み取りと、1 フレーム進める口。dropRock(size, x, z, warn?) = 指定位置へ今すぐ噴石を落とす（warn は着弾までの秒の上書き）。start() = タイトルから開始
   window.GAME = { G, P, M, F, KEYS, CFG, FXS, FXV, dino, WORLD, VOL, SND, RS, OB, OBS, ROCKS, MAG, HUD, CAVE, get fx() { return fx; },
-    step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); },
-    restart, start: startGame,
+    step: dt => { if (F.paused) pauseFrame(dt); else update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); },
+    restart, start: startGame, pause: doPause, toTitle, choose: pauseChoose, toggle: pauseToggle,
     dropRock: (size, x, z, warn) => spawnRock(RS, size, x, z, null, warn),
     dropRockOnDino: (size, warn) => { const w = warn || CFG.rock.sizes[size].warn; return spawnRock(RS, size, P.x, P.z - P.speed * w, null, warn); } };
   let last = performance.now();
   document.addEventListener('visibilitychange', () => { last = performance.now(); });   // タブに戻ったとき、離れていた時間ぶんの dt にならない
   (function loop(now) {
     const dt = Math.max(0, Math.min(CFG.dt.max, (now - last) / 1000)); last = now;   // 1 フレームの最大秒（タブ復帰時の飛び防止）
-    if (fxHitstopStep(FXS, dt)) { /* hitstop: game time paused, rendering continues */ }
+    if (F.paused) pauseFrame(dt);   // 一時停止中：ゲームは進めず、描画だけ続ける
+    else if (fxHitstopStep(FXS, dt)) { /* hitstop: game time paused, rendering continues */ }
     else update(dt);
     WORLD.renderer.render(WORLD.scene, WORLD.camera);
     requestAnimationFrame(loop);

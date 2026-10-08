@@ -25,8 +25,8 @@ function scoreStep(S, G, ev, dt) {
     const R = r.radius + H.dinoR, ratio = Math.hypot(P.x - r.x, P.z - r.z) / R, large = r.size === 'large', air = P.y >= H.maxY;
     const near = ratio <= SC.near.hi && (ratio >= SC.near.lo || air);   // ギリギリ（円の外すぐ。円の中でも跳んで爆風の上を越えたなら可）
     if (near || (large && was)) {                                // 大型は、警告円の中にいたのに着弾までに出て逃げ切ったときも
-      if (large) { S.n.big++; scoreAdd(S, 'big', SC.rockLarge, 'BIG ESCAPE!!'); }
-      else { S.n.great++; scoreAdd(S, 'great', SC.rock, 'GREAT ESCAPE!'); }
+      if (large) { S.n.big++; scoreAdd(S, 'big', SC.rockLarge, TEXT.big); }
+      else { S.n.great++; scoreAdd(S, 'great', SC.rock, TEXT.great); }
     }
   }
   // 着弾前の噴石：警告円（着弾半径＋恐竜半径）の中に入ったことがあるかを覚える
@@ -42,13 +42,13 @@ function scoreStep(S, G, ev, dt) {
       if (ob.hit || P.state !== 'run' || P.invuln > 0) continue;
       if (Math.abs(P.x - ob.x) > ob.hw + O.dinoR + SC.comboLateral) continue;   // 遠くを通っただけ：回避とは数えない（コンボは切れない）
       S.combo++; S.bestCombo = Math.max(S.bestCombo, S.combo);
-      if (S.combo >= SC.comboFrom) { S.n.combo++; scoreAdd(S, 'combo', SC.comboMul * Math.min(S.combo, SC.comboCap), 'COMBO ×' + S.combo); }
+      if (S.combo >= SC.comboFrom) { S.n.combo++; scoreAdd(S, 'combo', SC.comboMul * Math.min(S.combo, SC.comboCap), TEXT.combo + S.combo); }
     }
   }
   // 3) マグマが近い状態で走り続けた：連続 1 秒ごと
   if (M.phase === 'playing' && M.active && P.state === 'run' && magmaGap(M, P) < SC.magmaGap) {
     S.nearT += dt;
-    while (S.nearT >= S.nearSec + 1) { S.nearSec++; S.n.magma++; scoreAdd(S, 'magma', SC.magmaPerSec, 'MAGMA RUN'); }
+    while (S.nearT >= S.nearSec + 1) { S.nearSec++; S.n.magma++; scoreAdd(S, 'magma', SC.magmaPerSec, TEXT.magmaRun); }
   } else { S.nearT = 0; S.nearSec = 0; }
 }
 

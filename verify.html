@@ -20,6 +20,31 @@
 <div id="sum"></div>
 <script>
 "use strict";
+// ===== 画面に出る文言（すべてここ。ゲーム用語は日本語に統一。キー名の R / M / Esc / P は一般的な表記のまま） =====
+// HTML 側は data-t="キー名" の要素に hudBuild() がここから流し込む。ロジック（スコアの文字・危険度）もここを参照する。
+const TEXT = {
+  docTitle: '恐竜大脱走 - 火山から逃げろ！',
+  logo: '恐竜大脱走', tag: '火山から逃げろ！',
+  score: 'スコア', best: 'ベスト', titleBest: 'ベストスコア', newRecord: '新記録！',
+  dist: '距離：', escDist: '逃走距離：', magma: 'マグマ', danger: '危険度：', dangerLabels: ['安全', '注意', '危険', '最終'],
+  gameOver: 'ゲームオーバー', gameOverSub: '火山から逃げ切れなかった……', clear: 'クリア！', clearSub: '火山から逃げ切った！', again: '[R] もう一度逃げる',
+  great: 'ギリギリセーフ！', big: '大回避！！', magmaRun: 'マグマすれすれ', combo: 'コンボ ×',
+  boom: 'ドゴォォォン！！！', boom2: 'ドゴォォォォォン！！！', relief: '……危なかった', scream: 'ギャーー！！', oops: 'うわっ！',
+  start: '[スペース] でスタート',
+  keyMove: 'レーン移動', keyJump: 'ジャンプ', keySlide: 'くぐる', keySpace: 'スペース', keyMute: '音 入／切', keyRestart: 'リスタート', keyPause: '一時停止',
+  hint: '← → / A D レーン移動 ・ スペース ジャンプ ・ ↓ / S くぐる ・ Esc 一時停止 ・ M 音',
+  muteOn: '♪ 音あり (M)', muteOff: '♪ 音なし (M)',
+  pause: '一時停止', resume: '再開', restart: '最初からやり直す', toTitle: 'タイトルに戻る', soundOff: '音を切る', soundOn: '音を出す',
+  pauseHint: '↑ ↓ で選ぶ ・ スペース / Enter で決定 ・ Esc で再開',
+  noThree: 'three.js を読み込めませんでした（ネット接続を確認してください）'
+};
+
+// data-t="キー" の要素へ文言を流し込む（起動時に 1 回。three.js の読み込みに失敗しても出る）
+function textApply() {
+  if (typeof document === 'undefined') return;
+  document.title = TEXT.docTitle;
+  document.querySelectorAll('[data-t]').forEach(el => { const s = TEXT[el.getAttribute('data-t')]; if (typeof s === 'string') el.textContent = s; });
+}
 // ===== 調整値（ここに集約） =====
 const CFG = {
   run: { baseSpeed: 16, accel: 0.04, maxSpeed: 34 },                  // 前進：基準速度 / 経過秒あたりの加速（u/s²）/ 上限（単位 u = 1m）
@@ -31,6 +56,18 @@ const CFG = {
   world: { groundSize: 600, texRepeat: 40, fogColor: 0x5a2f26, fogNear: 50, fogFar: 260, clearHalf: 11,
            rocks: 46, hills: 14, spawnAhead: 220, spawnBehind: 30, spread: 110 },   // 地面の大きさ / テクスチャ繰り返し / フォグ / 装飾を置かない中央の半幅（遊べる範囲の外側）/ 装飾の数 / 先に出す距離・消す距離 / 左右の散らばり幅
   dino: { runFreq: 0.55, legSwing: 0.95, tailSwing: 0.35, bob: 0.09, tuck: 1.0, lean: 0.008, leanMax: 0.35 },   // 脚ふりの速さ（距離あたり）/ 脚の振れ幅 / 尻尾の揺れ / 上下の弾み / ジャンプ時の足たたみ / 横移動の傾き（横速度あたり）と上限
+  craterLook: {   // クレーターの見た目（当たり判定の半径 r = 縁の山の頂点。窪みは半径 r の内側）
+    depth: 0.6, rimH: 0.28,                          // 窪みの深さ(u) / 縁の盛り上がりの高さ(u)。ジャンプ（clearY 0.5）で越えられる大きさ
+    rim: 0xd2cdc7, rimSlope: 0x8c7b70, wall: 0x35190f, floor: 0x120504,   // 縁の頂点（明るい灰）/ 縁の外の斜面 / 内側の壁 / 底（暗い赤茶）
+    debris: 8, scorch: 0.45, smoke: 0.22              // 縁のまわりの岩・土塊の数 / 焦げ跡の濃さ / 煙の濃さ
+  },
+  dinoLook: {   // 恐竜の見た目（色は 0xRRGGBB）。体は頂点カラーの塗り分け（背中=濃い緑 / 腹=クリーム / 縞）＋トゥーン風の段階影＋縁のリムライト
+    back: 0x78c94c, backDark: 0x3f9a3c, stripe: 0x2c7a34, belly: 0xf3eaa8, foot: 0x4f9c3a, claw: 0xfff3d0,
+    spikeBase: 0xe86a24, spikeTip: 0xffd45a, blush: 0xf59a88, mouth: 0x7e2a36, tongue: 0xe0687a, lip: 0x34190f,
+    rim: 0xffb980, rimPower: 2.4, rimGain: 0.5,     // 縁のリムライト：色 / 絞り / 強さ
+    toon: [0.62, 0.82, 1.0],                          // トゥーンの明るさ 3 段階（暗→明）
+    tailRings: 26, tailLen: 3.3, tailBend: 1.25      // 尻尾：輪の数（多いほどなめらか）/ 長さ / 曲がりの強さ（元の2関節の回転に掛ける倍率）
+  },
   volcano: { eruptDelay: 4, rampTime: 6, idleSmoke: 0.25, dist: 300, recede: 0.04, radius: 120, height: 130, craterR: 18,   // 大噴火までの秒 / 噴火が最大強度になるまでの秒 / 噴火前の煙の量 / 後方の距離 / 遠ざかる率 / 山の大きさ
              boomDur: 2.2, shakeAmp: 0.32, shakeDur: 1.6, flashDur: 0.9, flashMax: 0.6,                                    // 「ドゴォォォン」表示秒 / 画面揺れの大きさ・秒 / 閃光の秒・最大濃さ
              smokeMax: 450, fireMax: 380, ashMax: 650, emberMax: 200, canopyMax: 170,                                                    // パーティクル上限（煙 / 火花 / 火山灰 / 降る火の粉）
@@ -74,7 +111,7 @@ const CFG = {
   // 難易度（Phase 6）。時間の基準は「噴火が始まってからの秒 e」（ゲーム開始から eruptDelay=4 秒後が e=0）。強度 s は 0〜1
   difficulty: {
     knots: [[0, 0], [20, 0.2], [40, 0.5], [60, 0.85], [78, 1]],     // [e 秒, 強度 s]：折れ線でつなぐ（境目で急に変わらない）。60 秒以降は最大へ向かい 78 秒で 1
-    stageFrom: [0, 20, 40, 60], labels: ['LOW', 'MID', 'HIGH', 'MAX'],   // チュートリアル / 通常 / 危険ゾーン / 最終逃走 の開始秒と、HUD の危険度の表記
+    stageFrom: [0, 20, 40, 60], labels: TEXT.dangerLabels,   // チュートリアル / 通常 / 危険ゾーン / 最終逃走 の開始秒と、HUD の危険度の表記
     rock: { interval0: 3.0, interval1: 0.5, curve: 1.0,               // 噴石の落下間隔（秒）：s=0 で 3.0 → s=1 で 0.5（ばらつき ±jitter は別）
             aim0: 0.3, aim1: 0.5,                                    // 恐竜を狙う噴石の割合（rock.aimChance の代わり）：序盤 0.3 → 終盤 0.5（レーン制では「恐竜のいるレーンを覆う」噴石）
             active0: 3, active1: 12,                                  // 同時に落ちている数の上限：3 → 12（描画の枠 rock.maxActive が頭打ち）
@@ -131,6 +168,7 @@ const CFG = {
     hintSec: 7                                                         // 操作ヒントを出しておく秒（その後フェードアウト）
   },
   sound: { vol: { fall: 0.8, impact: 1.0, scream: 0.8, step: 0.55, jump: 0.6, slide: 0.7, land: 0.7, stinger: 0.7, beep: 0.4, hit: 1.0 }, master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
+  pause: { stepSec: 1.0, steps: 3 },                                  // 一時停止から再開するときのカウントダウン：1 つ数える秒 / 数える回数（3→2→1）
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };
 // ===== 純ロジック（three.js 非依存。verify.html でテスト） =====
@@ -791,8 +829,8 @@ function scoreStep(S, G, ev, dt) {
     const R = r.radius + H.dinoR, ratio = Math.hypot(P.x - r.x, P.z - r.z) / R, large = r.size === 'large', air = P.y >= H.maxY;
     const near = ratio <= SC.near.hi && (ratio >= SC.near.lo || air);   // ギリギリ（円の外すぐ。円の中でも跳んで爆風の上を越えたなら可）
     if (near || (large && was)) {                                // 大型は、警告円の中にいたのに着弾までに出て逃げ切ったときも
-      if (large) { S.n.big++; scoreAdd(S, 'big', SC.rockLarge, 'BIG ESCAPE!!'); }
-      else { S.n.great++; scoreAdd(S, 'great', SC.rock, 'GREAT ESCAPE!'); }
+      if (large) { S.n.big++; scoreAdd(S, 'big', SC.rockLarge, TEXT.big); }
+      else { S.n.great++; scoreAdd(S, 'great', SC.rock, TEXT.great); }
     }
   }
   // 着弾前の噴石：警告円（着弾半径＋恐竜半径）の中に入ったことがあるかを覚える
@@ -808,13 +846,13 @@ function scoreStep(S, G, ev, dt) {
       if (ob.hit || P.state !== 'run' || P.invuln > 0) continue;
       if (Math.abs(P.x - ob.x) > ob.hw + O.dinoR + SC.comboLateral) continue;   // 遠くを通っただけ：回避とは数えない（コンボは切れない）
       S.combo++; S.bestCombo = Math.max(S.bestCombo, S.combo);
-      if (S.combo >= SC.comboFrom) { S.n.combo++; scoreAdd(S, 'combo', SC.comboMul * Math.min(S.combo, SC.comboCap), 'COMBO ×' + S.combo); }
+      if (S.combo >= SC.comboFrom) { S.n.combo++; scoreAdd(S, 'combo', SC.comboMul * Math.min(S.combo, SC.comboCap), TEXT.combo + S.combo); }
     }
   }
   // 3) マグマが近い状態で走り続けた：連続 1 秒ごと
   if (M.phase === 'playing' && M.active && P.state === 'run' && magmaGap(M, P) < SC.magmaGap) {
     S.nearT += dt;
-    while (S.nearT >= S.nearSec + 1) { S.nearSec++; S.n.magma++; scoreAdd(S, 'magma', SC.magmaPerSec, 'MAGMA RUN'); }
+    while (S.nearT >= S.nearSec + 1) { S.nearSec++; S.n.magma++; scoreAdd(S, 'magma', SC.magmaPerSec, TEXT.magmaRun); }
   } else { S.nearT = 0; S.nearSec = 0; }
 }
 
@@ -830,7 +868,7 @@ function bestWrite(st, score) {
 // mode：'title'（開始前。ゲームの時間は進まない）→ 'playing' → 'over'（マグマに飲まれた）/ 'clear'（クリア演出 → 結果）。R で 'playing' に戻る（タイトルは経由しない）。
 // 既存の stepGame / newGame は変えない：開始前かどうかはここ（flow）が持ち、title の間は stepGame を呼ばないだけ。
 function newFlow(store) {
-  const F = { mode: 'title', t: 0, playT: 0, fromTitle: false, store: store || null, best: 0, newRecord: false, score: 0, dist: 0, overT: 0, S: newScore(), clear: null };
+  const F = { mode: 'title', t: 0, playT: 0, fromTitle: false, store: store || null, best: 0, newRecord: false, score: 0, dist: 0, overT: 0, S: newScore(), clear: null, paused: false, resumeT: 0, pauseSel: 0, pauseT: 0 };
   F.best = bestRead(F.store);
   return F;
 }
@@ -847,7 +885,7 @@ function flowCanRestart(F) { return F.mode === 'over' || (F.mode === 'clear' && 
 // 全状態を初期化して playing へ（タイトルは経由しない）。G の中身を入れ替える
 function flowRestart(F, G, seed) {
   resetGame(G, seed);
-  F.mode = 'playing'; F.playT = 0; F.fromTitle = false; F.t = 0; F.overT = 0; F.newRecord = false; F.score = 0; F.dist = 0; F.S = newScore(); F.clear = null;
+  F.mode = 'playing'; F.playT = 0; F.fromTitle = false; F.t = 0; F.overT = 0; F.newRecord = false; F.score = 0; F.dist = 0; F.S = newScore(); F.clear = null; flowPauseReset(F);
   return F;
 }
 
@@ -861,6 +899,7 @@ function flowFinish(F, P) {
 // 1 フレーム進める。title の間は G に一切触れない。戻り値は stepGame と同じ形の ev（＋ ev.clear = クリア演出の出来事 ['stage:breathe', 'boom', …]）
 function stepFlow(F, G, inp, dt, rng) {
   const P = G.P;
+  if (F.paused) { flowPauseStep(F, dt); return flowEmptyEv(); }   // 一時停止中・再開カウントダウン中は G に一切触れない
   if (F.mode === 'title') { F.t += dt; return flowEmptyEv(); }
   if (F.mode === 'playing') {
     const v0 = P.speed, ev = stepGame(G, inp, dt, rng); ev.clear = [];
@@ -950,6 +989,46 @@ function clearVolMul(C) {   // 火山の音の倍率：安全地帯で小さく 
 function clearLavaSink(C) { return CFG.clear.lavaSink * smooth01(C.T / CFG.clear.lavaSinkSec); }
 // 大爆発を見上げる：爆発の瞬間から視線が上へ（噴煙が見えるように）。0〜1
 function clearTilt(C) { return C.i < 3 ? 0 : C.i === 3 ? smooth01(C.t / 0.7) : 1; }
+
+// ---- 一時停止（ポーズ）：playing のときだけ。paused の間は stepFlow が G に触れない。再開は 3→2→1 のカウントダウン（resumeT）を挟む ----
+// 項目：resume=再開 / restart=最初からやり直す / title=タイトルに戻る / mute=音の切り替え
+const PAUSE_ITEMS = ['resume', 'restart', 'title', 'mute'];
+function flowPauseReset(F) { F.paused = false; F.resumeT = 0; F.pauseSel = 0; F.pauseT = 0; }
+function flowMenuShown(F) { return F.paused && F.resumeT <= 0; }                 // メニューが出ている（カウントダウン中ではない）
+function flowCounting(F) { return F.paused && F.resumeT > 0; }
+function flowCountNum(F) { return F.resumeT > 0 ? Math.max(1, Math.min(CFG.pause.steps, Math.ceil(F.resumeT / CFG.pause.stepSec - 1e-9))) : 0; }   // 表示する数字（3,2,1）。0 ならなし
+// 一時停止する。playing 以外（タイトル・結果・クリア演出）では効かない。メニュー表示中の連打は何もしない（二重にならない）。カウントダウン中ならメニューへ戻す
+function flowPause(F) {
+  if (F.mode !== 'playing' || flowMenuShown(F)) return false;
+  F.paused = true; F.resumeT = 0; F.pauseSel = 0; return true;
+}
+// 再開のカウントダウンを始める（メニュー表示中だけ。連打しても 1 回）
+function flowResume(F) {
+  if (!flowMenuShown(F)) return false;
+  F.resumeT = CFG.pause.stepSec * CFG.pause.steps; return true;
+}
+function flowMenuMove(F, d) {
+  if (!flowMenuShown(F)) return false;
+  const n = PAUSE_ITEMS.length; F.pauseSel = ((F.pauseSel + d) % n + n) % n; return true;
+}
+function flowMenuSet(F, i) { if (!flowMenuShown(F) || i < 0 || i >= PAUSE_ITEMS.length) return false; F.pauseSel = i; return true; }
+// 選択中の項目を決定。resume はここで始める。それ以外は項目名を返し、呼び出し側（boot）が実行する（restart は flowRestart、title は flowToTitle）
+function flowMenuChoose(F, i) {
+  if (!flowMenuShown(F)) return null;
+  const item = PAUSE_ITEMS[i == null ? F.pauseSel : i]; if (!item) return null;
+  if (item === 'resume') flowResume(F);
+  return item;
+}
+function flowPauseStep(F, dt) {
+  F.pauseT += dt;
+  if (F.resumeT > 0) { F.resumeT -= dt; if (F.resumeT <= 0) { F.resumeT = 0; F.paused = false; } }
+}
+// タイトルに戻る：全状態を初期化して title へ（ベストは持ち越す）。Space でまた開始できる
+function flowToTitle(F, G, seed) {
+  resetGame(G, seed);
+  F.mode = 'title'; F.t = 0; F.playT = 0; F.fromTitle = false; F.overT = 0; F.newRecord = false; F.score = 0; F.dist = 0; F.S = newScore(); F.clear = null; flowPauseReset(F);
+  return F;
+}
 // ===== 自動プレイするボット（バランス確認用。純ロジックの上で動く。本体 HTML には入らない）=====
 // botRun({ seed, rngSeed, err, reaction, maxSec, dodge }) → 1 回ぶんの結果。
 //   err      = 各危険（噴石 1 個・障害物 1 個）を「見逃す」確率。0 = 完璧、1 = 何も避けない（動かない・ジャンプもしない）
@@ -1636,7 +1715,7 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   const D = CFG.difficulty, DT = 1 / 60, NOI = { left: false, right: false, jump: false };
   // difficultyAt：ステージ境界・単調性・連続性
   check('難易度：0〜20 秒=tutorial/LOW、20〜40=normal/MID、40〜60=danger/HIGH、60 秒以降=final/MAX',
-    difficultyAt(0).name === 'tutorial' && difficultyAt(19.9).label === 'LOW' && difficultyAt(20).name === 'normal' && difficultyAt(39.9).label === 'MID' && difficultyAt(40).name === 'danger' && difficultyAt(59.9).label === 'HIGH' && difficultyAt(60).name === 'final' && difficultyAt(500).label === 'MAX');
+    difficultyAt(0).name === 'tutorial' && difficultyAt(19.9).label === TEXT.dangerLabels[0] && difficultyAt(20).name === 'normal' && difficultyAt(39.9).label === TEXT.dangerLabels[1] && difficultyAt(40).name === 'danger' && difficultyAt(59.9).label === TEXT.dangerLabels[2] && difficultyAt(60).name === 'final' && difficultyAt(500).label === TEXT.dangerLabels[3]);
   check('難易度：強度は 0 で始まり 1 に届き、負の時間でも 0', difficultyAt(0).s === 0 && difficultyAt(-5).s === 0 && difficultyAt(1e6).s === 1);
   check('難易度：強度は単調増加で、境界(20/40/60 秒)の前後で連続（階段状に急変しない）', (() => {
     let p = -1, maxJump = 0; for (let e = 0; e < 120; e += 0.01) { const s = difficultyAt(e).s; if (s < p - 1e-12) return false; if (p >= 0) maxJump = Math.max(maxJump, s - p); p = s; } return maxJump < 0.005;
@@ -1850,7 +1929,7 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   check('スコア：着弾点から（半径＋恐竜半径）の 1.4 倍で無傷なら GREAT ESCAPE! で +100（中型）', (() => {
     const { G, S } = sg(), r = mkRock(1, 'mid', 1.4 * R_('mid'), 0), e = ev0(); e.landed.push({ rock: r, hit: false });
     scoreStep(S, G, e, DT); const t = scoreTake(S);
-    return S.bonus === SC.rock && t.length === 1 && t[0].kind === 'great' && t[0].text === 'GREAT ESCAPE!' && t[0].pts === 100 && scoreTake(S).length === 0;
+    return S.bonus === SC.rock && t.length === 1 && t[0].kind === 'great' && t[0].text === TEXT.great && t[0].pts === 100 && scoreTake(S).length === 0;
   })());
   check('スコア：大型のギリギリ回避は +300（BIG ESCAPE!!）', (() => { const { G, S } = sg(), e = ev0(); e.landed.push({ rock: mkRock(1, 'large', 1.3 * R_('large'), 0), hit: false }); scoreStep(S, G, e, DT); return S.bonus === SC.rockLarge && scoreTake(S)[0].kind === 'big'; })());
   check('スコア：1.8 倍より遠い（大きく外れた）噴石は加点なし。ちょうど 1.8 倍はギリギリ', (() => {
@@ -2031,6 +2110,81 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
     return tot >= 10 && tot <= 20 && K.stopDist > cv.mouth - 0 && K.lookTurn < K.lookBack && K.reliefText < K.relief && CFG.orbit.R < cv.halfW && K.stopDist + CFG.orbit.R < cv.mouth + cv.length;
   })());
   check('dt の上限（タブ復帰で巨大にならない）は 0.1 秒以下', CFG.dt.max > 0 && CFG.dt.max <= 0.1);
+})();
+// ===== 改修B：一時停止（ポーズ）と、タイトルへ戻る =====
+(() => {
+  const DT = 1 / 60, NOI = { left: false, right: false, jump: false, slide: false }, CP = CFG.pause;
+  const quietG = () => { const G = newGame(); G.OB.off = true; G.RS.timer = 1e9; return G; };
+  const run = (F, G, n) => { for (let i = 0; i < n; i++) stepFlow(F, G, NOI, DT); };
+  const playing = () => { const G = quietG(), F = newFlow(null); flowStart(F); run(F, G, 60); return { G, F }; };
+  const snap = G => JSON.stringify([G.P.time, G.P.dist, G.P.x, G.P.z, G.P.speed, G.M.t, G.M.front, G.RS.timer, G.RS.rocks.length]);
+
+  check('ポーズ：playing のときだけ入れる。タイトル・ゲームオーバー・クリア演出中・結果画面では入れない', (() => {
+    const G = quietG(), F = newFlow(null); const t = flowPause(F);
+    flowStart(F); F.mode = 'over'; const o = flowPause(F);
+    F.mode = 'clear'; F.clear = newClearSeq(16, G.P); const c = flowPause(F); F.clear.stage = 'result'; const r = flowPause(F);
+    return !t && !o && !c && !r && !F.paused;
+  })());
+  check('ポーズ：一時停止中は stepFlow を何度回しても時間・距離・噴火タイマー・マグマ・噴石が進まない', (() => {
+    const { G, F } = playing(); const a = snap(G); flowPause(F); run(F, G, 600);
+    return F.paused && snap(G) === a && flowMenuShown(F);
+  })());
+  check('ポーズ：連打しても二重にならない（pause を 5 回 → 1 回分・resume を 5 回 → カウントダウンは 1 本）', (() => {
+    const { F } = playing(); const r = [1, 2, 3, 4, 5].map(() => flowPause(F)); F.pauseSel = 2;
+    const q = [1, 2, 3, 4, 5].map(() => flowResume(F));
+    return r[0] === true && r.slice(1).every(x => x === false) && q[0] === true && q.slice(1).every(x => x === false) && F.resumeT === CP.stepSec * CP.steps;
+  })());
+  check('ポーズ：再開は 3→2→1 のカウントダウン（各 stepSec 秒）を挟み、その間はゲームが動かない。終わると動き出す', (() => {
+    const { G, F } = playing(); flowPause(F); const a = snap(G); flowResume(F);
+    const seen = []; let guard = 0;
+    while (F.paused && guard++ < 1000) { const nn = flowCountNum(F); if (seen[seen.length - 1] !== nn) seen.push(nn); stepFlow(F, G, NOI, DT); }
+    const frozen = snap(G) === a, still = !F.paused && !flowCounting(F);
+    run(F, G, 30);
+    return frozen && still && seen.join() === '3,2,1' && G.P.time > 0.4 && Math.abs(guard * DT - CP.stepSec * CP.steps) < 0.05;
+  })());
+  check('ポーズ：再開カウントダウン中に Esc（flowPause）するとメニューへ戻る。もう一度再開すればまた最初から数える', (() => {
+    const { G, F } = playing(); flowPause(F); flowResume(F); run(F, G, 70);
+    const back = flowPause(F), inMenu = flowMenuShown(F) && F.resumeT === 0; flowResume(F);
+    return back && inMenu && F.resumeT === CP.stepSec * CP.steps && flowCountNum(F) === 3;
+  })());
+  check('ポーズ：メニューの選択は ↑↓ で循環（4 項目）。カウントダウン中・ポーズ外では動かない', (() => {
+    const { F } = playing(); const out = flowMenuMove(F, 1); flowPause(F);
+    const a = [flowMenuMove(F, 1), F.pauseSel], b = (flowMenuMove(F, -1), flowMenuMove(F, -1), F.pauseSel), c = (flowMenuMove(F, 1), F.pauseSel);
+    F.pauseSel = 0; flowMenuMove(F, -1); const wrap = F.pauseSel; F.pauseSel = 3; flowMenuMove(F, 1); const wrap2 = F.pauseSel;
+    flowResume(F); const cnt = flowMenuMove(F, 1);
+    return !out && a[0] && a[1] === 1 && b === 3 && c === 0 && wrap === 3 && wrap2 === 0 && !cnt && PAUSE_ITEMS.length === 4;
+  })());
+  check('ポーズ：決定。再開はカウントダウンを始め、それ以外は項目名を返す。メニューが出ていないときは null', (() => {
+    const { F } = playing(); const none = flowMenuChoose(F, 0); flowPause(F);
+    const names = [1, 2, 3].map(i => flowMenuChoose(F, i)); const res = flowMenuChoose(F, 0), again = flowMenuChoose(F, 0);
+    return none === null && names.join() === 'restart,title,mute' && res === 'resume' && flowCounting(F) && again === null;
+  })());
+  check('ポーズ：ポーズ中に経過した時間はゲームに入らない（途中で 10 秒止めても結果が同じ）', (() => {
+    const A = playing(), B = playing(); run(A.F, A.G, 120);
+    run(B.F, B.G, 60); flowPause(B.F); run(B.F, B.G, 600); flowResume(B.F); let g = 0; while (B.F.paused && g++ < 999) stepFlow(B.F, B.G, NOI, DT); run(B.F, B.G, 59);
+    return Math.abs(A.G.P.time - B.G.P.time) < DT * 2 && Math.abs(A.G.P.dist - B.G.P.dist) < 1.5;
+  })());
+  check('ポーズ：最初からやり直す（flowRestart）でポーズ状態も初期化され、すぐ playing で動く', (() => {
+    const { G, F } = playing(); flowPause(F); flowMenuMove(F, 2); flowRestart(F, G, 5); run(F, G, 30);
+    return F.mode === 'playing' && !F.paused && F.resumeT === 0 && F.pauseSel === 0 && G.P.time > 0.4 && flowPause(F);
+  })());
+  check('ポーズ：タイトルに戻る（flowToTitle）で全初期化。時間は止まったまま、Space（flowStart）でまた開始できる。ベストは残る', (() => {
+    const st = { m: {}, getItem(k) { return k in this.m ? this.m[k] : null; }, setItem(k, v) { this.m[k] = String(v); } };
+    const G = quietG(), F = newFlow(st); F.best = 1234; flowStart(F); run(F, G, 200); flowPause(F); flowMenuMove(F, 1); flowToTitle(F, G, 9);
+    const fresh = newGame(); const t0 = F.mode === 'title' && !F.paused && F.pauseSel === 0 && G.P.time === 0 && G.P.dist === 0 && G.P.x === 0 && G.RS.rocks.length === 0 && !G.M.active && F.best === 1234 && F.S.bonus === 0 && !flowPause(F);
+    run(F, G, 300); const still = G.P.time === 0 && F.mode === 'title';
+    const s = flowStart(F); run(F, G, 60);
+    return t0 && still && s && F.mode === 'playing' && G.P.time > 0.9 && F.fromTitle === true && fresh.P.speed <= G.P.speed + 1e-9;
+  })());
+  check('ポーズ：開始→一時停止→やり直す / タイトルへ を 3 周しても状態が持ち越されない（距離・スコア・噴石・障害物・マグマ）', (() => {
+    const F = newFlow(null); const G = newGame(); let ok = true;
+    for (let k = 0; k < 3; k++) {
+      flowStart(F); run(F, G, 400 + k * 60); flowPause(F); run(F, G, 30);
+      if (k % 2 === 0) flowRestart(F, G, 11 + k); else flowToTitle(F, G, 11 + k);
+      ok = ok && G.P.time === 0 && G.P.dist === 0 && G.RS.rocks.length === 0 && G.OB.list.length === 0 && !G.M.active && F.S.bonus === 0 && F.S.combo === 0 && !F.paused;
+    }
+    return ok;
+  })());
 })();
 document.getElementById('sum').textContent = nNg === 0 ? `ALL PASS (${nOk})` : `FAIL ${nNg} / PASS ${nOk}`;
 document.getElementById('sum').style.color = nNg === 0 ? '#6bd07a' : '#ff6b6b';

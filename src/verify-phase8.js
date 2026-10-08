@@ -59,7 +59,7 @@
   check('スコア：着弾点から（半径＋恐竜半径）の 1.4 倍で無傷なら GREAT ESCAPE! で +100（中型）', (() => {
     const { G, S } = sg(), r = mkRock(1, 'mid', 1.4 * R_('mid'), 0), e = ev0(); e.landed.push({ rock: r, hit: false });
     scoreStep(S, G, e, DT); const t = scoreTake(S);
-    return S.bonus === SC.rock && t.length === 1 && t[0].kind === 'great' && t[0].text === 'GREAT ESCAPE!' && t[0].pts === 100 && scoreTake(S).length === 0;
+    return S.bonus === SC.rock && t.length === 1 && t[0].kind === 'great' && t[0].text === TEXT.great && t[0].pts === 100 && scoreTake(S).length === 0;
   })());
   check('スコア：大型のギリギリ回避は +300（BIG ESCAPE!!）', (() => { const { G, S } = sg(), e = ev0(); e.landed.push({ rock: mkRock(1, 'large', 1.3 * R_('large'), 0), hit: false }); scoreStep(S, G, e, DT); return S.bonus === SC.rockLarge && scoreTake(S)[0].kind === 'big'; })());
   check('スコア：1.8 倍より遠い（大きく外れた）噴石は加点なし。ちょうど 1.8 倍はギリギリ', (() => {

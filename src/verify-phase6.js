@@ -3,7 +3,7 @@
   const D = CFG.difficulty, DT = 1 / 60, NOI = { left: false, right: false, jump: false };
   // difficultyAt：ステージ境界・単調性・連続性
   check('難易度：0〜20 秒=tutorial/LOW、20〜40=normal/MID、40〜60=danger/HIGH、60 秒以降=final/MAX',
-    difficultyAt(0).name === 'tutorial' && difficultyAt(19.9).label === 'LOW' && difficultyAt(20).name === 'normal' && difficultyAt(39.9).label === 'MID' && difficultyAt(40).name === 'danger' && difficultyAt(59.9).label === 'HIGH' && difficultyAt(60).name === 'final' && difficultyAt(500).label === 'MAX');
+    difficultyAt(0).name === 'tutorial' && difficultyAt(19.9).label === TEXT.dangerLabels[0] && difficultyAt(20).name === 'normal' && difficultyAt(39.9).label === TEXT.dangerLabels[1] && difficultyAt(40).name === 'danger' && difficultyAt(59.9).label === TEXT.dangerLabels[2] && difficultyAt(60).name === 'final' && difficultyAt(500).label === TEXT.dangerLabels[3]);
   check('難易度：強度は 0 で始まり 1 に届き、負の時間でも 0', difficultyAt(0).s === 0 && difficultyAt(-5).s === 0 && difficultyAt(1e6).s === 1);
   check('難易度：強度は単調増加で、境界(20/40/60 秒)の前後で連続（階段状に急変しない）', (() => {
     let p = -1, maxJump = 0; for (let e = 0; e < 120; e += 0.01) { const s = difficultyAt(e).s; if (s < p - 1e-12) return false; if (p >= 0) maxJump = Math.max(maxJump, s - p); p = s; } return maxJump < 0.005;
