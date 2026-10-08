@@ -242,7 +242,7 @@ function updateWorld(P, dt) {
   let px = WORLD.camX, py = WORLD.camY, pz = P.z + C.back, lx = WORLD.lookX, ly = C.lookY, lz = P.z - C.lookAhead;
   const a = WORLD.viewAz || 0;   // 回り込み角（タイトル画面・クリアの振り返り）。0 なら通常。恐竜のまわりを回り、a が大きいほど火山（後ろ）側から見る
   if (a > 0.001) {
-    const O = CFG.orbit, w = smooth01(a / 0.6), u = smooth01((a - 1.2) / 1.7), v = smooth01(a / 0.5);
+    const O = WORLD.viewClear ? CFG.clear.cam : CFG.orbit, w = smooth01(a / 0.6), u = smooth01((a - 1.2) / 1.7), v = smooth01(a / 0.5);
     px += (P.x + Math.sin(a) * O.R - px) * w; py += (O.h - py) * w; pz += (P.z + Math.cos(a) * O.R - pz) * w;
     const hx = P.x - px, hz = P.z - pz, hl = Math.hypot(hx, hz) || 1;   // カメラから恐竜への向き（横向きに見るときも恐竜を画面の中央に保つ）
     const oy = 2.4 + (O.lookY - 2.4) * u + (WORLD.viewUp || 0) * O.tilt * u, ox = P.x + hx / hl * O.lookAhead * u, oz = P.z + hz / hl * O.lookAhead * u;   // 真横では恐竜を見て、正面に回るほど（その延長の）遠く＝火山を見る
@@ -257,5 +257,5 @@ function updateWorld(P, dt) {
 // 再スタート用：装飾を初期配置へ、カメラを最初の位置へ
 function resetWorld() {
   WORLD.decor.forEach(d => WORLD.place(d, true, 0));
-  WORLD.viewAz = 0; WORLD.viewUp = 0; WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
+  WORLD.viewAz = 0; WORLD.viewUp = 0; WORLD.viewClear = false; WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
 }

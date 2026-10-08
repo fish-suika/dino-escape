@@ -145,7 +145,7 @@
     dino.clr = clearing ? { stage: C.stage, t: C.t, turn: clearTurn(C), shock: clearShock(C), relief: clearRelief(C) } : null;
     VOL.mega = clearing ? clearMega(C) : 0; MAG.calm = clearing;
     sndSetVolcanoMul(clearing ? clearVolMul(C) : title ? 0.7 : 1);
-    WORLD.viewAz = flowCamAz(F); WORLD.viewUp = clearing ? clearTilt(C) : 0;
+    WORLD.viewAz = flowCamAz(F); WORLD.viewUp = clearing ? clearTilt(C) : 0; WORLD.viewClear = clearing;
     if (sighT > 0) {   // ため息：口もとから白っぽい息
       sighT -= dt; dino.head.getWorldPosition(headPos);
       if (Math.random() < dt * 40) fxEmit(ROCKS.dust, headPos.x + rnd(-0.2, 0.2), headPos.y - 0.2, headPos.z + 0.9, rnd(-0.4, 0.4), rnd(0.2, 0.8), rnd(1.2, 2.4), rnd(0.9, 1.4), rnd(0.7, 1.2), 0.45, 0);

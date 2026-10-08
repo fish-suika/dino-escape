@@ -89,7 +89,7 @@
     check('マグマ表示：危険な距離の判定（触れたらゲームオーバー・danger ゲージ）は表示の倍率に影響されない', (() => { const a = magmaDanger(10), s = magmaViewScale(10, false); return a === magmaDanger(10) && s < 1 && magmaDanger(0) === CFG.magma.dangerGaps.length; })());
   })();
   // ボット評価（3 レーン制。見逃し率 err = 各危険を見逃す確率。dodge は隣のレーンへ避ける割合）
-  const perfect = botSummary({ err: 0 }, 40), none = botSummary({ err: 1 }, 20), sloppy = botSummary({ err: 0.1 }, 40), bad = botSummary({ err: 0.2 }, 40), worse = botSummary({ err: 0.4 }, 40);
+  const perfect = botSummary({ err: 0 }, 100), none = botSummary({ err: 1 }, 20), sloppy = botSummary({ err: 0.1 }, 40), bad = botSummary({ err: 0.2 }, 40), worse = botSummary({ err: 0.4 }, 40);
   const slidy = botSummary({ err: 0, dodge: 0 }, 20), dodgy = botSummary({ err: 0, dodge: 1 }, 20);
   window.__bots = { perfect: botLine(perfect), sloppy10: botLine(sloppy), sloppy20: botLine(bad), sloppy40: botLine(worse), none: botLine(none), dodge0: botLine(slidy), dodge1: botLine(dodgy) };
   const pre = document.createElement('pre'); pre.id = 'bots'; pre.style.cssText = 'color:#9ab;font-size:12px;margin-top:12px;white-space:pre-wrap';

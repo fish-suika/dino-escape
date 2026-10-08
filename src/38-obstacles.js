@@ -3,10 +3,10 @@
 // ジオメトリ・マテリアルは種類ごとに 1 つを共有し、プール（固定数のスロット）を貸し借りする。毎フレーム新しく作らない。
 const OBS = { frame: 0, T: 0, byId: new Map(), pools: {} };
 // ===== くぐるための頭上の障害物（アーチ）の形：噴火の荒野に合う 2 種類 =====
-// 共通：下（足元〜梁の下端 clear）はぽっかり空いていて向こう側が見える。支えは細めで、道（レーン）の外側に立つ。
+// 共通：下（足元〜梁の下端 clear）はぽっかり空いていて向こう側が見える。支えは「レーンの境目か、その外側」にだけ立つ（走るレーン中心から ±runHalf には入らない。柱自体に当たり判定は無い）。
 // 梁の上と下の縁にだけ、赤熱した亀裂（発光）を入れて「頭上に危険がある」と分かるようにする。亀裂は別メッシュ（発光色）。
-//   T「傾いた焦げた大木」: 噴火の熱で倒れかけた黒焦げの大木が、斜めに道をまたいで反対側の岩に寄りかかっている。幹は右へ向かって少し下がる。
-//   R「溶岩の岩棚」     : 冷え固まった黒い玄武岩の柱（柱状節理）が両側に階段状に並び、上に黒い岩の庇が張り出している。
+//   T「傾いた焦げた大木」: 道の外の根もとから斜めに伸びた幹が、道をまたぐ幹を支え、幹の反対の端は道の外の岩に寄りかかる。
+//   R「溶岩の岩棚」     : 道の外の境目に冷え固まった黒い玄武岩の柱（柱状節理）が階段状に立ち、上に黒い岩の庇が道をまたぐ。2 レーン幅では真ん中の境目に柱は立てない。
 // 幅は 1 レーン用 / 2 レーン用の 2 通り（hw = 通れる半幅）。ジオメトリは種類×幅ごとに 1 つを全アーチで共有する。
 function archBuildGeos() {
   const A = CFG.obstacle.arch, cl = A.clear, hd = A.hd, out = { T: {}, R: {} };
@@ -15,48 +15,50 @@ function archBuildGeos() {
   const crack = (x, y, z, w, h, d, rz) => ({ geo: box, pos: [x, y, z], rot: [0, 0, rz || 0], scl: [w, h, d], color: ember, shade: 0.3 });
   const scorch = (c, v) => { const t = Math.min(1, Math.max(0, v.y / 3)); c.multiplyScalar(0.75 + 0.35 * t); };   // 下ほど暗く（すすけた感じ）
   [1, 2].forEach(n => {
-    const hw = n * CFG.lane.width / 2 - A.inset, sup = hw + 0.55;   // 支えの中心は通れる範囲のすぐ外
-    // ---- T：傾いた大木 ----
+    // 柱は「通るレーンの外側の境目」(archPostSpec) だけに立つ。根もと・岩・がれきも含め、柱の中心から外へ reach 以内に収める（外のレーンの中心＝走る位置へ届かない）。
+    const ps = archPostSpec(n), bx = ps.x, rc = A.post.reach, hw = n * CFG.lane.width / 2 - A.inset;   // bx = 柱の中心 / hw = 通れる半幅（当たり判定）
+    // ---- T：傾いた大木（幹が道の外の根もとから斜めに立ち上がって道をまたぎ、反対側の岩に寄りかかる）----
     {
-      const sx = 2 * hw + 2.7, yl = cl + 1.0, yr = cl + 0.4, tilt = Math.atan2(yl - yr, sx), cy = (yl + yr) / 2, ctr = 0;   // 幹は左が高く右が低い（右端の岩に寄りかかる）
-      const trunk = new THREE.CylinderGeometry(0.62, 0.42, sx, 7, 3).rotateZ(Math.PI / 2);
+      const sx = 2 * bx + 1.5, yl = cl + 0.95, yr = cl + 0.48, tilt = Math.atan2(yl - yr, sx), cy = (yl + yr) / 2;   // 道をまたぐ幹：左が高く右が低い
+      const trunk = new THREE.CylinderGeometry(0.6, 0.42, sx, 7, 3).rotateZ(Math.PI / 2);
+      const B = [-(bx + rc - 0.4), 0], T = [-(bx - 0.3), yl - 0.15], dx = T[0] - B[0], dy = T[1] - B[1], len = Math.hypot(dx, dy), lean = -Math.atan2(dx, dy);   // 左：根もと（境目の外側）から斜めに伸びて幹を支える細めの斜め幹
       const body = [
-        { geo: trunk, pos: [ctr, cy, 0], rot: [0, 0, -tilt], color: dark, jit: 0.14, paint: scorch },
-        { geo: new THREE.CylinderGeometry(0.5, 0.75, cl + 1.3, 6, 2), pos: [-(sup + 0.5), (cl + 1.3) / 2, 0.05], color: dark, jit: 0.16, paint: scorch },   // 左：折れた根もと（幹がここから斜めに伸びる）
-        { geo: cone, pos: [-(sup + 0.5), 0.5, 0.5], scl: [0.9, 1.0, 0.5], rot: [0.4, 0, 0.3], color: dark, jit: 0.1 }, { geo: cone, pos: [-(sup + 1.0), 0.45, -0.4], scl: [0.8, 0.9, 0.45], rot: [-0.4, 0, 0.5], color: dark, jit: 0.1 },   // 根の張り出し
-        { geo: dodeca, pos: [sup + 0.35, 0.95, 0], scl: [1.0, 1.0, 0.95], rot: [0.3, 0.5, 0.1], color: [0x5a4d46, 0x4a3f3a, 0x665850], jit: 0.28 },   // 右：寄りかかられる岩
-        { geo: dodeca, pos: [sup + 0.9, 0.6, 0.55], scl: [0.7, 0.65, 0.6], rot: [0.9, 0.2, 0.4], color: [0x4a3f3a, 0x5a4d46], jit: 0.2 },
-        { geo: dodeca, pos: [sup + 0.2, 1.65, -0.1], scl: [0.75, 0.6, 0.75], rot: [0.2, 1.1, 0.6], color: [0x5a4d46, 0x665850], jit: 0.22 },
+        { geo: trunk, pos: [0, cy, 0], rot: [0, 0, -tilt], color: dark, jit: 0.14, paint: scorch },
+        { geo: new THREE.CylinderGeometry(0.27, 0.4, len, 6, 3), pos: [(B[0] + T[0]) / 2, (B[1] + T[1]) / 2, 0.02], rot: [0, 0, lean], color: dark, jit: 0.1, paint: scorch },
+        { geo: cone, pos: [B[0] + 0.08, 0.4, 0.3], scl: [0.55, 0.8, 0.4], rot: [0.4, 0, 0.3], color: dark, jit: 0.08 }, { geo: cone, pos: [B[0] - 0.05, 0.3, -0.3], scl: [0.5, 0.7, 0.35], rot: [-0.4, 0, 0.5], color: dark, jit: 0.08 },   // 根の張り出し
+        { geo: dodeca, pos: [bx + 0.12, 0.5, 0], scl: [0.55, 0.55, 0.52], rot: [0.3, 0.5, 0.1], color: [0x5a4d46, 0x4a3f3a, 0x665850], jit: 0.12 },   // 右：寄りかかられる岩の積み重ね
+        { geo: dodeca, pos: [bx + 0.18, 1.2, -0.04], scl: [0.46, 0.5, 0.45], rot: [0.2, 1.1, 0.6], color: [0x5a4d46, 0x665850], jit: 0.1 },
+        { geo: dodeca, pos: [bx + 0.1, 1.82, 0], scl: [0.4, 0.32, 0.4], rot: [0.9, 0.2, 0.4], color: [0x4a3f3a, 0x5a4d46], jit: 0.1 },
         { geo: cone, pos: [-hw * 0.35, cy + 0.55 + 0.1, 0.05], scl: [0.16, 0.9, 0.16], rot: [0, 0, 0.35], color: dark, jit: 0.05 },   // 幹の上に突き出た折れ枝
         { geo: cone, pos: [hw * 0.25, cy + 0.15 + 0.5, -0.1], scl: [0.14, 0.7, 0.14], rot: [0, 0, -0.5], color: dark, jit: 0.05 },
         { geo: cone, pos: [hw * 0.75, cy - hw * 0.15 + 0.55, 0.1], scl: [0.12, 0.6, 0.12], rot: [0.3, 0, 0.2], color: dark, jit: 0.05 }
       ];
-      const glow = [];   // 幹の割れ目：下面と側面に赤熱の亀裂（途切れ途切れ）、折れた根もとにも
+      const glow = [];   // 幹の割れ目：下面と側面に赤熱の亀裂（途切れ途切れ）、斜め幹にも
       for (let i = 0; i < 6 + n * 2; i++) {
         const t = -0.5 + (i + 0.5) / (6 + n * 2), x = t * sx * 0.92, y = cy - Math.tan(tilt) * x - 0.46 + 0.05 * Math.sin(i * 2.3);
         glow.push(crack(x, y, 0.12 * Math.sin(i), sx * 0.04 + 0.3 * Math.abs(Math.sin(i * 1.7)), 0.07, 0.36, -tilt));
         glow.push(crack(x + 0.2, y + 0.38, 0.52 + 0.05 * Math.cos(i), 0.45 + 0.4 * Math.abs(Math.sin(i * 0.9)), 0.06, 0.05, -tilt));
       }
-      glow.push(crack(-(sup + 0.5), 0.9, 0.5, 0.06, 1.1, 0.06, 0.1), crack(-(sup + 0.6), 1.9, 0.45, 0.06, 0.7, 0.06, -0.08));
+      glow.push(crack(B[0] + 0.3, 1.0, 0.3, 0.05, 0.9, 0.05, lean), crack(B[0] + 0.42, 1.9, 0.28, 0.05, 0.6, 0.05, lean));
       out.T[n] = { body: gmParts(body, 11 + n), crack: gmParts(glow, 13 + n) };
     }
-    // ---- R：溶岩の岩棚（柱状節理の柱＋黒い岩の庇）----
+    // ---- R：溶岩の岩棚（柱状節理の細い岩の柱を道の外の境目に立て、黒い岩の庇が道をまたぐ。2 レーン幅でも真ん中の境目には柱を立てない）----
     {
-      const body = [], glow = [], slabW = 2 * hw + 1.3, slabY = cl + 0.45;
-      body.push({ geo: new THREE.BoxGeometry(slabW, 0.9, 2 * hd + 0.5, 5, 1, 2), pos: [0, slabY, 0], color: basalt, jit: 0.22, shade: 0.3, paint: scorch });   // 庇（下端 = clear）
-      body.push({ geo: new THREE.BoxGeometry(slabW * 0.8, 0.45, 2 * hd, 4, 1, 2), pos: [0.2, slabY + 0.6, 0.1], color: basalt, jit: 0.2, shade: 0.3 });    // 庇の上の段
-      for (let k = 0; k < Math.round(slabW / 0.9); k++) {   // 庇の下の垂れ下がり（短い鍾乳状の岩。下端は clear より上に収める）
+      const body = [], glow = [], slabW = 2 * bx + 1.3, slabY = cl + 0.45;   // 庇は柱の少し外まで（外のレーンの恐竜の頭に届かない）
+      body.push({ geo: new THREE.BoxGeometry(slabW, 0.9, 2 * hd + 0.5, 6, 1, 2), pos: [0, slabY, 0], color: basalt, jit: 0.2, shade: 0.3, paint: scorch });   // 庇（下端 = clear）
+      body.push({ geo: new THREE.BoxGeometry(slabW * 0.78, 0.45, 2 * hd, 5, 1, 2), pos: [0.2, slabY + 0.6, 0.1], color: basalt, jit: 0.2, shade: 0.3 });    // 庇の上の段
+      for (let k = 0; k < Math.round(slabW / 0.9); k++) {   // 庇の下の垂れ下がり（短い鍾乳状の岩）
         const x = -slabW / 2 + 0.5 + k * 0.9 + 0.2 * Math.sin(k * 2.1), len = 0.22 + 0.14 * Math.abs(Math.sin(k * 1.3));
         body.push({ geo: cone, pos: [x, cl - len / 2 + 0.02, 0.35 * Math.sin(k * 1.9)], scl: [0.17, len, 0.17], rot: [Math.PI, 0, 0], color: basalt, jit: 0.04 });
       }
-      [-1, 1].forEach(s => {   // 両側に柱状節理の柱（外側ほど高い階段状。内側の柱の上に庇が乗る）
-        const cols = [[0.45, cl + 0.05, 0.0, 0.5], [1.15, cl + 1.15, -0.3, 0.45], [1.0, cl + 1.9, 0.75, 0.42], [1.8, cl + 2.1, 0.35, 0.5], [2.35, cl + 0.9, -0.5, 0.4]];
+      [-1, 1].forEach(s => {   // 柱状節理の柱：中心が bx（レーンの境目の外寄り）。いちばん内側の柱の上に庇が乗り、外側ほど高い階段状（reach 以内）
+        const cols = [[0.0, cl + 0.05, 0.0, 0.34], [0.34, cl + 1.25, -0.22, 0.26], [0.48, cl + 0.6, 0.24, 0.2], [-0.24, cl + 1.55, 0.3, 0.22]];
         cols.forEach(([dx, h, z, r], i) => {
-          const x = s * (sup - 0.2 + dx);
-          body.push({ geo: hex, pos: [x, h / 2, z], scl: [r, h, r], rot: [0, i * 0.5, 0], color: basalt, jit: 0.06, shade: 0.35, paint: scorch });
-          if (i < 3) glow.push(crack(x + s * r * 0.5, h * 0.55, z + r * 0.8, 0.05, h * 0.5, 0.05));   // 柱の割れ目の赤熱
+          const x = s * (bx + dx);
+          body.push({ geo: hex, pos: [x, h / 2, z], scl: [r, h, r], rot: [0, i * 0.5, 0], color: basalt, jit: 0.04, shade: 0.35, paint: scorch });
+          glow.push(crack(x + s * r * 0.5, h * 0.55, z + r * 0.8, 0.05, h * 0.5, 0.05));   // 柱の割れ目の赤熱
         });
-        body.push({ geo: dodeca, pos: [s * (sup + 2.6), 0.35, 0.5], scl: [0.8, 0.5, 0.7], rot: [0.5, 0.5, 0.2], color: [0x3a3033, 0x2e2629], jit: 0.18 });   // 足もとのがれき
+        body.push({ geo: dodeca, pos: [s * (bx + 0.42), 0.18, 0.4], scl: [0.26, 0.2, 0.26], rot: [0.5, 0.5, 0.2], color: [0x3a3033, 0x2e2629], jit: 0.06 });   // 足もとのがれき（reach 以内）
       });
       for (let i = 0; i < 5 + n * 2; i++) {   // 庇の縁の赤熱の亀裂（前面と下面）
         const x = -slabW / 2 + 0.6 + (i + 0.4) * ((slabW - 1.2) / (5 + n * 2));

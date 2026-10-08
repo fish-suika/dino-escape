@@ -68,7 +68,8 @@ function botRun(o) {
         const best = pick(R1.tz, i => rockRem[i] === Infinity);
         if (best >= 0) target = best;
       } else if (curA) {
-        const best = wantsDodge(curA.ob.id) ? pick(curA.tz, i => rockRem[i] === Infinity && !afirst[i] && !(R1 && R1.blk[i])) : -1;
+        const through = i => { for (let j = cur + Math.sign(i - cur); j !== i; j += Math.sign(i - cur)) if (rows.some(r => r.blk[j] && r.tz < 1.6)) return false; return true; };   // 途中のレーンに地上の障害物が迫っていると、通り抜けの途中で戻されて行ったり来たりする
+        const best = wantsDodge(curA.ob.id) ? pick(curA.tz, i => rockRem[i] === Infinity && !afirst[i] && !(R1 && R1.blk[i]) && through(i)) : -1;
         if (best >= 0) { target = best; stats.dodges++; }
         else if (curA.tz <= 0.3 && curA.tz > -0.05) act = 'slide';
       }

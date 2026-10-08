@@ -176,8 +176,10 @@ const CFG = {
   },
   dinoLook: {   // 恐竜の見た目（色は 0xRRGGBB）。体は頂点カラーの塗り分け（背中=濃い緑 / 腹=クリーム / 縞）＋トゥーン風の段階影＋縁のリムライト
     back: 0x78c94c, backDark: 0x3f9a3c, stripe: 0x2c7a34, belly: 0xf3eaa8, foot: 0x4f9c3a, claw: 0xfff3d0,
-    spikeBase: 0xe86a24, spikeTip: 0xffd45a, blush: 0xf59a88, mouth: 0x7e2a36, tongue: 0xe0687a, lip: 0x34190f,
+    spikeBase: 0xe86a24, spikeTip: 0xffd45a, blush: 0xf59a88, mouth: 0xb23c52, tongue: 0xf48a9c, lip: 0x7b3a2c,
     rim: 0xffb980, rimPower: 2.4, rimGain: 0.5,     // 縁のリムライト：色 / 絞り / 強さ
+    // 目と口（改修 D）：eye = 眼球の半径 / 黒目の半径 / 黒目を眼球の前へずらす量 / まぶた(半球)の半径。口＝にっこり（口の線は細く・正面の中央だけ）。jawMax = あごの最大の開き(rad・小さめ)、mouthW/mouthH = 開けたときの丸い口の最大の幅・高さ(u)
+    eye: { r: 0.24, pupR: 0.19, pupOff: 0.105, lid: 0.26, sparkle: 0.2 }, jawMax: 0.16, mouthW: 0.11, mouthH: 0.1, smileHalf: 0.3, lipW: 0.022,
     toon: [0.62, 0.82, 1.0],                          // トゥーンの明るさ 3 段階（暗→明）
     tailRings: 26, tailLen: 3.3, tailBend: 1.25      // 尻尾：輪の数（多いほどなめらか）/ 長さ / 曲がりの強さ（元の2関節の回転に掛ける倍率）
   },
@@ -214,12 +216,12 @@ const CFG = {
               gap: { start: 2.4, end: 1.05, jitter: 0.3, min: 0.5, react: 0.25, moveExtra: 0.03, margin: 1.08, archSec: 1.5 },   // 行と行の「窓」（障害物の前後の範囲）のあいだの目安の秒：序盤 → 終盤（難易度の強度 s で補間）/ ばらつき(±割合) / 最低秒 / 反応時間 / レーン移動 1 回ごとの余裕 / 速さの見積りの余裕(倍) / アーチの前後に空ける秒
               pair: { from: 220, p0: 0, p1: 0.35 },                                                                          // 2 レーン塞ぐ行（残り 1 レーン）：出始める距離(startDist から) / 出る確率 序盤 → 終盤
               unlock: { rock: 0, crater: 70, log: 110, pool: 200, arch: 40 },                                               // 各障害物が出始める走行距離（startDist からの増分。arch=40 は距離 90 から）
-              weights: { rock: 0.30, log: 0.22, crater: 0.18, pool: 0.12, arch: 0.18 },                                     // 出現の重み
+              weights: { rock: 0.30, log: 0.22, crater: 0.18, pool: 0.12, arch: 0.36 },                                     // 出現の重み（アーチは改修 D で 0.18 → 0.36：行の約 17% → 約 30%）
               rock: { rMin: 1.0, rMax: 1.5, hMin: 1.0, hMax: 1.4, shrink: 0.85 },                                           // 岩（1 レーン・レーン中心）：半径 / 高さ / 当たりの縮小率
               log: { r: 0.55, len: 3.0 },                                                                                   // 倒木（1 レーン幅・短い丸太）：幹の半径 / 長さ（レーン幅 4.5 より短い）
               crater: { rMin: 1.5, rMax: 2.5 },                                                                             // クレーター（1 レーン）：半径
               pool: { rMin: 2.0, rMax: 3.3 },                                                                               // マグマ溜まり（1 レーン。半径 +恐竜半径が隣のレーン中心に届かない）：半径
-              arch: { clear: 1.7, beamH: 1.0, hd: 0.9, inset: 0.2, oneLane: 0.5 },                                          // 頭上の障害物（くぐる）：下をくぐれる高さ / 梁の厚み / 前後の半分の長さ / レーン端からの引っ込み / 1 レーン幅になる割合（残りは 2 レーン）。梁の下端 clear > slideH なので立ったままだと頭が当たる
+              arch: { clear: 1.7, beamH: 1.0, hd: 0.9, inset: 0.2, oneLane: 0.5, post: { off: 0.2, r: 0.42, reach: 0.7, runHalf: 1.2 } },                                          // 頭上の障害物（くぐる）。post＝支えの柱は「レーンの境目か、その外側」だけに立てる：off＝境目から外へずらす量 / r＝柱の半幅（0.5 以内）/ reach＝柱の中心から外側へ広がる最大（根もと・岩・がれきも含む。外のレーン中心へ届かない）/ runHalf＝走る位置（レーン中心）から柱が入ってはいけない半径(±)。下をくぐれる高さ / 梁の厚み / 前後の半分の長さ / レーン端からの引っ込み / 1 レーン幅になる割合（残りは 2 レーン）。梁の下端 clear > slideH なので立ったままだと頭が当たる
               dinoR: 0.6, depthPad: 0.7,                                                                                    // 障害物に対する恐竜の当たり半径 / 前後方向の余裕
               trip: { knock: 0.6, up: 6.5, fwd: 7, spin: 7, slowSec: 2.2, slowFactor: 0.6, shake: 0.14 },                   // 岩・倒木で転倒：転がる秒 / 跳ね上がり / 前へ転がる初速 / 回転 / 減速の秒と倍率 / 画面揺れ
               poolTrip: { knock: 0.8, up: 8, fwd: 5, spin: 8, slowSec: 3.0, slowFactor: 0.42, shake: 0.2 },                 // マグマ溜まりに触れた：転倒＋強めの減速
@@ -240,7 +242,8 @@ const CFG = {
   },
   // クリア（安全地帯）。プレイヤーの速さは 16 + 0.04t（t は開始からの秒）なので、距離 = 16t + 0.02t²。
   // distance=2200 → 約 119.5 秒（被弾なし）。被弾の減速（1 回で約 1.5〜2 秒ぶんの遅れ）を数回受けても 2 分台前半、1〜3 分に収まる
-  goal: { distance: 2200 },
+  // rockStop = ゴールのこの距離(u)手前から先（洞窟の手前〜洞窟の中）には、噴石の落下地点を選ばない（危険マーカーを出さない）。最後の駆け込みで理不尽に当たらないように
+  goal: { distance: 2200, rockStop: 60 },
   // スコア（Phase 8）：基本＝走った距離(m)。ボーナスは 噴石のギリギリ回避 / 大型噴石の回避 / 障害物の連続回避 / マグマが近いまま走り続ける
   score: {
     bestKey: 'dino-escape-best',                                      // localStorage のキー
@@ -257,7 +260,8 @@ const CFG = {
     eruption: 3.4, relief: 3.8, reliefText: 1.1,                     // 大爆発の秒 / ホッとする段階の秒 / 「……危なかった」が出るまでの秒
     skipFrom: 3.0,                                                   // Space で結果画面へ飛ばせるようになる秒（クリアから。連打で誤って飛ばさない）
     safeZone: 12,                                                    // ゴールの手前この距離から先には障害物を置かない
-    cave: { mouth: 12, length: 48, halfW: 17, height: 16 }, // 洞窟：入口の位置(ゴールから) / 奥行き / 中の半幅 / 中の高さ（山の高さ・入口の形は 34-cave.js）
+    cave: { mouth: 23, length: 48, halfW: 17, height: 16 }, // 洞窟：入口の位置(ゴールから) / 奥行き / 中の半幅 / 中の高さ（山の高さ・入口の形は 34-cave.js）
+    cam: { R: 8, h: 4.6, lookY: 4.4, lookAhead: 24, tilt: 6.0 },   // æ¯ãè¿ããå¤§å´ç«ã®ã«ã¡ã©ï¼orbit ã®ä»£ããï¼ï¼æç«ã®å¾ã(æ´çªã®å¥¥å´)ã¸ã®è·é¢ / é«ã / æ³¨è¦ç¹ã®é«ã / åã®è·é¢ / å¤§å´ç«ã§è¦ä¸ããéãå¥å£(mouth)ã®ããåå´ãããå¥å£ã®ã¢ã¼ãè¶ãã«ç«å±±ãè¦ã
     vol: { safe: 0.25, boom: 1.5, after: 0.4 },                       // 火山の音量の倍率：安全地帯の中 / 大爆発 / そのあと
     flash: { sec: 1.4, max: 1 }, shake: { amp: 0.7, sec: 1.8, rumble: 0.14 }, mega: { burst: 220, smokeMul: 0.8, fireMul: 2.5 },   // 巨大な閃光 / 画面揺れ / 噴煙の増やし方
     lavaSink: 9, lavaSinkSec: 3                                      // クリア後、マグマが引いて沈む（深さと秒）
@@ -463,6 +467,9 @@ function rockSpots(size) {
   return out;
 }
 
+// 洞窟エリア：ゴール（goal.distance）の rockStop 手前から先。ここ（洞窟の手前〜クリア演出の洞窟の中）には噴石の落下地点＝危険マーカーを出さない
+function rockInCaveZone(z) { return -z >= CFG.goal.distance - CFG.goal.rockStop; }
+
 // 落下地点：着弾までに恐竜が進む距離を見込んで前方にずらす。aimed なら恐竜のいるレーンを覆う位置、そうでなければ前方のどこか（x はレーンに吸着）
 function pickRockTarget(P, size, rng, aimChance) {
   const R = CFG.rock, C = R.sizes[size];
@@ -503,6 +510,7 @@ function rockZone(P, size, x, z, rem) {
 // 反応時間 react のあと、隣のレーンへは shiftSec（＋余裕）ずつかかる。着弾までに間に合うレーンで、障害物（岩・倒木・アーチ・溜まりなど）に塞がれていないものが 1 つでもあればよい。
 // 噴石どうしが重なって安全なレーンが無くなる配置、移る時間が足りない配置を弾く（資料 §16「必ず回避可能なルートを作る」）
 function rockEscapable(S, P, cand, OB) {
+  if (rockInCaveZone(cand.z)) return false;   // 洞窟の手前〜洞窟の中には落下地点を選ばない
   const F = CFG.rock.fair, L = CFG.lane, zones = [];
   for (const r of S.rocks) { const z = rockZone(P, r.size, r.x, r.z, r.warn - r.t); if (z) zones.push(z); }
   const zc = rockZone(P, cand.size, cand.x, cand.z, cand.rem); if (zc) zones.push(zc);
@@ -536,7 +544,7 @@ function stepRocks(S, P, dt, erupting, rng, OB) {
       if (S.rocks.length < K.maxActive) {
         const size = pickRockSize(rr(rng, 0, 1), K.weights), warn = R.sizes[size].warn;
         let tg = null;   // 逃げ切れない配置になる場所は選び直す（fair.tries 回まで）。全部だめなら少し待ってやり直す
-        for (let i = 0; i < R.fair.tries && !tg; i++) { const c = pickRockTarget(P, size, rng, K.aim); if (rockEscapable(S, P, { size, x: c.x, z: c.z, rem: warn }, OB)) tg = c; }
+        for (let i = 0; i < R.fair.tries && !tg; i++) { const c = pickRockTarget(P, size, rng, K.aim); if (!rockInCaveZone(c.z) && rockEscapable(S, P, { size, x: c.x, z: c.z, rem: warn }, OB)) tg = c; }
         const r = tg ? spawnRock(S, size, tg.x, tg.z, rng) : null;
         if (r) { ev.spawned.push(r); S.timer = K.interval * (1 + R.jitter * (rr(rng, 0, 1) * 2 - 1)); } else S.timer = R.fair.retry;
       } else S.timer = 0.25;
@@ -647,6 +655,15 @@ function obLerp(a, b, t) { return a + (b - a) * t; }
 function obSpeedAt(dist) { return speedAt(nominalTime(dist)); }
 // 障害物の前後の広がり（この範囲に入ると触れる）
 function obExtent(ob) { return (ob.type === 'crater' || ob.type === 'pool' ? ob.r : ob.hd) + CFG.obstacle.depthPad; }
+
+// アーチの支えの柱の位置（アーチの中心から左右 ±x）。幅 n レーンのアーチは、通る n レーンの外側の境目（またはその外）にだけ柱を立てる＝走るレーンの中には立てない。
+// inner = 柱の内側のふち、gap = 柱のふちから、最も近いレーン中心（走る位置）までの距離。見た目（38-obstacles.js）も同じ値を使う
+function archPostSpec(n) {
+  const A = CFG.obstacle.arch, W = CFG.lane.width, P = A.post, x = n * W / 2 + P.off, inner = x - P.r;
+  const outer = x + P.reach, c0= n % 2 ? 0 : W / 2;   // 走る位置（レーン中心）は n が奇数なら W の倍数、偶数なら W/2 + W の倍数
+  let gap = Infinity; for (let k = -6; k <= 6; k++) { const c = c0 + k * W; gap = Math.min(gap, c < inner ? inner - c : c > outer ? c - outer : 0); }
+  return { x, inner, outer, gap };
+}
 
 // 障害物 1 個を作る。lanes = 占有するレーン番号（地上の障害物は 1 つ、アーチは 1〜2）。a・b は 0〜1 の乱数（大きさのばらつき）
 function obMake(type, lanes, dist, a, b) {
@@ -1435,7 +1452,7 @@ function updateWorld(P, dt) {
   let px = WORLD.camX, py = WORLD.camY, pz = P.z + C.back, lx = WORLD.lookX, ly = C.lookY, lz = P.z - C.lookAhead;
   const a = WORLD.viewAz || 0;   // 回り込み角（タイトル画面・クリアの振り返り）。0 なら通常。恐竜のまわりを回り、a が大きいほど火山（後ろ）側から見る
   if (a > 0.001) {
-    const O = CFG.orbit, w = smooth01(a / 0.6), u = smooth01((a - 1.2) / 1.7), v = smooth01(a / 0.5);
+    const O = WORLD.viewClear ? CFG.clear.cam : CFG.orbit, w = smooth01(a / 0.6), u = smooth01((a - 1.2) / 1.7), v = smooth01(a / 0.5);
     px += (P.x + Math.sin(a) * O.R - px) * w; py += (O.h - py) * w; pz += (P.z + Math.cos(a) * O.R - pz) * w;
     const hx = P.x - px, hz = P.z - pz, hl = Math.hypot(hx, hz) || 1;   // カメラから恐竜への向き（横向きに見るときも恐竜を画面の中央に保つ）
     const oy = 2.4 + (O.lookY - 2.4) * u + (WORLD.viewUp || 0) * O.tilt * u, ox = P.x + hx / hl * O.lookAhead * u, oz = P.z + hz / hl * O.lookAhead * u;   // 真横では恐竜を見て、正面に回るほど（その延長の）遠く＝火山を見る
@@ -1450,7 +1467,7 @@ function updateWorld(P, dt) {
 // 再スタート用：装飾を初期配置へ、カメラを最初の位置へ
 function resetWorld() {
   WORLD.decor.forEach(d => WORLD.place(d, true, 0));
-  WORLD.viewAz = 0; WORLD.viewUp = 0; WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
+  WORLD.viewAz = 0; WORLD.viewUp = 0; WORLD.viewClear = false; WORLD.camReady = false; WORLD.camera.fov = CFG.cam.fov; WORLD.camera.updateProjectionMatrix();
 }
 // ===== 安全地帯：岩山と洞窟（three.js）。ゴール（goal.distance）の少し先に置く。動かない・毎フレームの処理なし =====
 // 作り：不規則な岩肌の山（高さの格子＋前面の岩壁）を、頂点カラー（下ほど暗く・上は少し明るく・苔・焦げ跡）で 1 メッシュに。
@@ -1460,7 +1477,7 @@ function resetWorld() {
 const CAVE = {};
 
 // 入口の形：中心 (cx, cy)、左右で半幅が違う（rxL / rxR）ゆがんだ楕円。θ の方向の「ふちまでの倍率」
-const CAVE_OPEN = { cx: 0.6, cy: 5.6, rxL: 9.8, rxR: 8.2, ry: 6.4 };
+const CAVE_OPEN = { cx: 0.6, cy: 6.4, rxL: 10.6, rxR: 9.4, ry: 7.8 };   // 改修 D：火山が見えるよう、入口の開口部を一回り大きく（以前は 9.8/8.2 × 6.4・中心の高さ 5.6）
 function caveEdgeScale(t) { return 1 + 0.07 * Math.sin(3 * t + 1.1) + 0.05 * Math.sin(5 * t + 2.3) + 0.03 * Math.sin(8 * t); }
 function caveEdgePoint(t, k) { const O = CAVE_OPEN, r = caveEdgeScale(t) * (k || 1); return [O.cx + (Math.cos(t) < 0 ? O.rxL : O.rxR) * Math.cos(t) * r, O.cy + O.ry * Math.sin(t) * r]; }
 function caveInside(x, y, k) {   // 点 (x, y) が入口（k 倍に広げたもの）の中か
@@ -2098,10 +2115,10 @@ function resetRocks() {
 // ジオメトリ・マテリアルは種類ごとに 1 つを共有し、プール（固定数のスロット）を貸し借りする。毎フレーム新しく作らない。
 const OBS = { frame: 0, T: 0, byId: new Map(), pools: {} };
 // ===== くぐるための頭上の障害物（アーチ）の形：噴火の荒野に合う 2 種類 =====
-// 共通：下（足元〜梁の下端 clear）はぽっかり空いていて向こう側が見える。支えは細めで、道（レーン）の外側に立つ。
+// 共通：下（足元〜梁の下端 clear）はぽっかり空いていて向こう側が見える。支えは「レーンの境目か、その外側」にだけ立つ（走るレーン中心から ±runHalf には入らない。柱自体に当たり判定は無い）。
 // 梁の上と下の縁にだけ、赤熱した亀裂（発光）を入れて「頭上に危険がある」と分かるようにする。亀裂は別メッシュ（発光色）。
-//   T「傾いた焦げた大木」: 噴火の熱で倒れかけた黒焦げの大木が、斜めに道をまたいで反対側の岩に寄りかかっている。幹は右へ向かって少し下がる。
-//   R「溶岩の岩棚」     : 冷え固まった黒い玄武岩の柱（柱状節理）が両側に階段状に並び、上に黒い岩の庇が張り出している。
+//   T「傾いた焦げた大木」: 道の外の根もとから斜めに伸びた幹が、道をまたぐ幹を支え、幹の反対の端は道の外の岩に寄りかかる。
+//   R「溶岩の岩棚」     : 道の外の境目に冷え固まった黒い玄武岩の柱（柱状節理）が階段状に立ち、上に黒い岩の庇が道をまたぐ。2 レーン幅では真ん中の境目に柱は立てない。
 // 幅は 1 レーン用 / 2 レーン用の 2 通り（hw = 通れる半幅）。ジオメトリは種類×幅ごとに 1 つを全アーチで共有する。
 function archBuildGeos() {
   const A = CFG.obstacle.arch, cl = A.clear, hd = A.hd, out = { T: {}, R: {} };
@@ -2110,48 +2127,50 @@ function archBuildGeos() {
   const crack = (x, y, z, w, h, d, rz) => ({ geo: box, pos: [x, y, z], rot: [0, 0, rz || 0], scl: [w, h, d], color: ember, shade: 0.3 });
   const scorch = (c, v) => { const t = Math.min(1, Math.max(0, v.y / 3)); c.multiplyScalar(0.75 + 0.35 * t); };   // 下ほど暗く（すすけた感じ）
   [1, 2].forEach(n => {
-    const hw = n * CFG.lane.width / 2 - A.inset, sup = hw + 0.55;   // 支えの中心は通れる範囲のすぐ外
-    // ---- T：傾いた大木 ----
+    // 柱は「通るレーンの外側の境目」(archPostSpec) だけに立つ。根もと・岩・がれきも含め、柱の中心から外へ reach 以内に収める（外のレーンの中心＝走る位置へ届かない）。
+    const ps = archPostSpec(n), bx = ps.x, rc = A.post.reach, hw = n * CFG.lane.width / 2 - A.inset;   // bx = 柱の中心 / hw = 通れる半幅（当たり判定）
+    // ---- T：傾いた大木（幹が道の外の根もとから斜めに立ち上がって道をまたぎ、反対側の岩に寄りかかる）----
     {
-      const sx = 2 * hw + 2.7, yl = cl + 1.0, yr = cl + 0.4, tilt = Math.atan2(yl - yr, sx), cy = (yl + yr) / 2, ctr = 0;   // 幹は左が高く右が低い（右端の岩に寄りかかる）
-      const trunk = new THREE.CylinderGeometry(0.62, 0.42, sx, 7, 3).rotateZ(Math.PI / 2);
+      const sx = 2 * bx + 1.5, yl = cl + 0.95, yr = cl + 0.48, tilt = Math.atan2(yl - yr, sx), cy = (yl + yr) / 2;   // 道をまたぐ幹：左が高く右が低い
+      const trunk = new THREE.CylinderGeometry(0.6, 0.42, sx, 7, 3).rotateZ(Math.PI / 2);
+      const B = [-(bx + rc - 0.4), 0], T = [-(bx - 0.3), yl - 0.15], dx = T[0] - B[0], dy = T[1] - B[1], len = Math.hypot(dx, dy), lean = -Math.atan2(dx, dy);   // 左：根もと（境目の外側）から斜めに伸びて幹を支える細めの斜め幹
       const body = [
-        { geo: trunk, pos: [ctr, cy, 0], rot: [0, 0, -tilt], color: dark, jit: 0.14, paint: scorch },
-        { geo: new THREE.CylinderGeometry(0.5, 0.75, cl + 1.3, 6, 2), pos: [-(sup + 0.5), (cl + 1.3) / 2, 0.05], color: dark, jit: 0.16, paint: scorch },   // 左：折れた根もと（幹がここから斜めに伸びる）
-        { geo: cone, pos: [-(sup + 0.5), 0.5, 0.5], scl: [0.9, 1.0, 0.5], rot: [0.4, 0, 0.3], color: dark, jit: 0.1 }, { geo: cone, pos: [-(sup + 1.0), 0.45, -0.4], scl: [0.8, 0.9, 0.45], rot: [-0.4, 0, 0.5], color: dark, jit: 0.1 },   // 根の張り出し
-        { geo: dodeca, pos: [sup + 0.35, 0.95, 0], scl: [1.0, 1.0, 0.95], rot: [0.3, 0.5, 0.1], color: [0x5a4d46, 0x4a3f3a, 0x665850], jit: 0.28 },   // 右：寄りかかられる岩
-        { geo: dodeca, pos: [sup + 0.9, 0.6, 0.55], scl: [0.7, 0.65, 0.6], rot: [0.9, 0.2, 0.4], color: [0x4a3f3a, 0x5a4d46], jit: 0.2 },
-        { geo: dodeca, pos: [sup + 0.2, 1.65, -0.1], scl: [0.75, 0.6, 0.75], rot: [0.2, 1.1, 0.6], color: [0x5a4d46, 0x665850], jit: 0.22 },
+        { geo: trunk, pos: [0, cy, 0], rot: [0, 0, -tilt], color: dark, jit: 0.14, paint: scorch },
+        { geo: new THREE.CylinderGeometry(0.27, 0.4, len, 6, 3), pos: [(B[0] + T[0]) / 2, (B[1] + T[1]) / 2, 0.02], rot: [0, 0, lean], color: dark, jit: 0.1, paint: scorch },
+        { geo: cone, pos: [B[0] + 0.08, 0.4, 0.3], scl: [0.55, 0.8, 0.4], rot: [0.4, 0, 0.3], color: dark, jit: 0.08 }, { geo: cone, pos: [B[0] - 0.05, 0.3, -0.3], scl: [0.5, 0.7, 0.35], rot: [-0.4, 0, 0.5], color: dark, jit: 0.08 },   // 根の張り出し
+        { geo: dodeca, pos: [bx + 0.12, 0.5, 0], scl: [0.55, 0.55, 0.52], rot: [0.3, 0.5, 0.1], color: [0x5a4d46, 0x4a3f3a, 0x665850], jit: 0.12 },   // 右：寄りかかられる岩の積み重ね
+        { geo: dodeca, pos: [bx + 0.18, 1.2, -0.04], scl: [0.46, 0.5, 0.45], rot: [0.2, 1.1, 0.6], color: [0x5a4d46, 0x665850], jit: 0.1 },
+        { geo: dodeca, pos: [bx + 0.1, 1.82, 0], scl: [0.4, 0.32, 0.4], rot: [0.9, 0.2, 0.4], color: [0x4a3f3a, 0x5a4d46], jit: 0.1 },
         { geo: cone, pos: [-hw * 0.35, cy + 0.55 + 0.1, 0.05], scl: [0.16, 0.9, 0.16], rot: [0, 0, 0.35], color: dark, jit: 0.05 },   // 幹の上に突き出た折れ枝
         { geo: cone, pos: [hw * 0.25, cy + 0.15 + 0.5, -0.1], scl: [0.14, 0.7, 0.14], rot: [0, 0, -0.5], color: dark, jit: 0.05 },
         { geo: cone, pos: [hw * 0.75, cy - hw * 0.15 + 0.55, 0.1], scl: [0.12, 0.6, 0.12], rot: [0.3, 0, 0.2], color: dark, jit: 0.05 }
       ];
-      const glow = [];   // 幹の割れ目：下面と側面に赤熱の亀裂（途切れ途切れ）、折れた根もとにも
+      const glow = [];   // 幹の割れ目：下面と側面に赤熱の亀裂（途切れ途切れ）、斜め幹にも
       for (let i = 0; i < 6 + n * 2; i++) {
         const t = -0.5 + (i + 0.5) / (6 + n * 2), x = t * sx * 0.92, y = cy - Math.tan(tilt) * x - 0.46 + 0.05 * Math.sin(i * 2.3);
         glow.push(crack(x, y, 0.12 * Math.sin(i), sx * 0.04 + 0.3 * Math.abs(Math.sin(i * 1.7)), 0.07, 0.36, -tilt));
         glow.push(crack(x + 0.2, y + 0.38, 0.52 + 0.05 * Math.cos(i), 0.45 + 0.4 * Math.abs(Math.sin(i * 0.9)), 0.06, 0.05, -tilt));
       }
-      glow.push(crack(-(sup + 0.5), 0.9, 0.5, 0.06, 1.1, 0.06, 0.1), crack(-(sup + 0.6), 1.9, 0.45, 0.06, 0.7, 0.06, -0.08));
+      glow.push(crack(B[0] + 0.3, 1.0, 0.3, 0.05, 0.9, 0.05, lean), crack(B[0] + 0.42, 1.9, 0.28, 0.05, 0.6, 0.05, lean));
       out.T[n] = { body: gmParts(body, 11 + n), crack: gmParts(glow, 13 + n) };
     }
-    // ---- R：溶岩の岩棚（柱状節理の柱＋黒い岩の庇）----
+    // ---- R：溶岩の岩棚（柱状節理の細い岩の柱を道の外の境目に立て、黒い岩の庇が道をまたぐ。2 レーン幅でも真ん中の境目には柱を立てない）----
     {
-      const body = [], glow = [], slabW = 2 * hw + 1.3, slabY = cl + 0.45;
-      body.push({ geo: new THREE.BoxGeometry(slabW, 0.9, 2 * hd + 0.5, 5, 1, 2), pos: [0, slabY, 0], color: basalt, jit: 0.22, shade: 0.3, paint: scorch });   // 庇（下端 = clear）
-      body.push({ geo: new THREE.BoxGeometry(slabW * 0.8, 0.45, 2 * hd, 4, 1, 2), pos: [0.2, slabY + 0.6, 0.1], color: basalt, jit: 0.2, shade: 0.3 });    // 庇の上の段
-      for (let k = 0; k < Math.round(slabW / 0.9); k++) {   // 庇の下の垂れ下がり（短い鍾乳状の岩。下端は clear より上に収める）
+      const body = [], glow = [], slabW = 2 * bx + 1.3, slabY = cl + 0.45;   // 庇は柱の少し外まで（外のレーンの恐竜の頭に届かない）
+      body.push({ geo: new THREE.BoxGeometry(slabW, 0.9, 2 * hd + 0.5, 6, 1, 2), pos: [0, slabY, 0], color: basalt, jit: 0.2, shade: 0.3, paint: scorch });   // 庇（下端 = clear）
+      body.push({ geo: new THREE.BoxGeometry(slabW * 0.78, 0.45, 2 * hd, 5, 1, 2), pos: [0.2, slabY + 0.6, 0.1], color: basalt, jit: 0.2, shade: 0.3 });    // 庇の上の段
+      for (let k = 0; k < Math.round(slabW / 0.9); k++) {   // 庇の下の垂れ下がり（短い鍾乳状の岩）
         const x = -slabW / 2 + 0.5 + k * 0.9 + 0.2 * Math.sin(k * 2.1), len = 0.22 + 0.14 * Math.abs(Math.sin(k * 1.3));
         body.push({ geo: cone, pos: [x, cl - len / 2 + 0.02, 0.35 * Math.sin(k * 1.9)], scl: [0.17, len, 0.17], rot: [Math.PI, 0, 0], color: basalt, jit: 0.04 });
       }
-      [-1, 1].forEach(s => {   // 両側に柱状節理の柱（外側ほど高い階段状。内側の柱の上に庇が乗る）
-        const cols = [[0.45, cl + 0.05, 0.0, 0.5], [1.15, cl + 1.15, -0.3, 0.45], [1.0, cl + 1.9, 0.75, 0.42], [1.8, cl + 2.1, 0.35, 0.5], [2.35, cl + 0.9, -0.5, 0.4]];
+      [-1, 1].forEach(s => {   // 柱状節理の柱：中心が bx（レーンの境目の外寄り）。いちばん内側の柱の上に庇が乗り、外側ほど高い階段状（reach 以内）
+        const cols = [[0.0, cl + 0.05, 0.0, 0.34], [0.34, cl + 1.25, -0.22, 0.26], [0.48, cl + 0.6, 0.24, 0.2], [-0.24, cl + 1.55, 0.3, 0.22]];
         cols.forEach(([dx, h, z, r], i) => {
-          const x = s * (sup - 0.2 + dx);
-          body.push({ geo: hex, pos: [x, h / 2, z], scl: [r, h, r], rot: [0, i * 0.5, 0], color: basalt, jit: 0.06, shade: 0.35, paint: scorch });
-          if (i < 3) glow.push(crack(x + s * r * 0.5, h * 0.55, z + r * 0.8, 0.05, h * 0.5, 0.05));   // 柱の割れ目の赤熱
+          const x = s * (bx + dx);
+          body.push({ geo: hex, pos: [x, h / 2, z], scl: [r, h, r], rot: [0, i * 0.5, 0], color: basalt, jit: 0.04, shade: 0.35, paint: scorch });
+          glow.push(crack(x + s * r * 0.5, h * 0.55, z + r * 0.8, 0.05, h * 0.5, 0.05));   // 柱の割れ目の赤熱
         });
-        body.push({ geo: dodeca, pos: [s * (sup + 2.6), 0.35, 0.5], scl: [0.8, 0.5, 0.7], rot: [0.5, 0.5, 0.2], color: [0x3a3033, 0x2e2629], jit: 0.18 });   // 足もとのがれき
+        body.push({ geo: dodeca, pos: [s * (bx + 0.42), 0.18, 0.4], scl: [0.26, 0.2, 0.26], rot: [0.5, 0.5, 0.2], color: [0x3a3033, 0x2e2629], jit: 0.06 });   // 足もとのがれき（reach 以内）
       });
       for (let i = 0; i < 5 + n * 2; i++) {   // 庇の縁の赤熱の亀裂（前面と下面）
         const x = -slabW / 2 + 0.6 + (i + 0.4) * ((slabW - 1.2) / (5 + n * 2));
@@ -2539,28 +2558,37 @@ function dnHeadShape(ux, uy, uz, out) {
   return out;
 }
 function dnSurf(ux, uy, uz, out) { const l = Math.hypot(ux, uy, uz) || 1; return dnHeadShape(ux / l, uy / l, uz / l, out); }   // 向きを正規化して頭の表面の点を得る
-function dnMouthY(z) { return -0.2 + 0.13 * dnSs(-0.5, 0.2, z); }   // 口の切れ目の高さ（奥＝口角ほど上がる＝にっこり）
+function dnMouthY(z, x) { return -0.2 + 0.13 * dnSs(-0.5, 0.2, z) + 0.07 * dnSs(0.1, 0.4, Math.abs(x || 0)); }   // 口の切れ目の高さ（奥・横＝口角ほど上がる＝にっこり）
 
 // 頭の上半分（lower=false）/ 下あご（lower=true）。同じ形を口の面で切り分ける。閉じていれば元の丸い頭に戻る
 function dnHeadHalf(lower, ws, hs) {
-  const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position, t = [0, 0, 0], rho = new Float32Array(p.count);
+  const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position, t = [0, 0, 0], rho = new Float32Array(p.count), inner = new Uint8Array(p.count);
+  const ref = new THREE.SphereGeometry(1, ws, hs), rq = ref.attributes.position;   // 切り分ける前の頭（なめらかな法線の手本）
   for (let i = 0; i < p.count; i++) {
-    rho[i] = Math.hypot(p.getX(i), p.getZ(i)); dnHeadShape(p.getX(i), p.getY(i), p.getZ(i), t);
-    const ym = dnMouthY(t[2]); t[1] = lower ? Math.min(t[1], ym) : Math.max(t[1], ym);
+    rho[i] = Math.hypot(p.getX(i), p.getZ(i)); dnHeadShape(p.getX(i), p.getY(i), p.getZ(i), t); rq.setXYZ(i, t[0], t[1], t[2]);
+    const ym = dnMouthY(t[2], t[0]); t[1] = lower ? Math.min(t[1], ym) : Math.max(t[1], ym);
+    inner[i] = Math.abs(t[1] - ym) < 1e-5 && rho[i] < 0.9 ? 1 : 0;   // 口の中の面（天井 / 床）の内側
     p.setXYZ(i, t[0], t[1], t[2]);
   }
-  dnWeld(g);
+  dnWeld(g); dnWeld(ref);
+  // 切り口のふちの法線は元の頭の丸い法線にそろえる（切り口の面の法線と平均すると、ふちが明るく光って「口が裂けた線」に見えるため）。口の中の面だけ上下向き
+  const gn = g.attributes.normal, rn = ref.attributes.normal;
+  for (let i = 0; i < p.count; i++) { if (inner[i]) gn.setXYZ(i, 0, lower ? 1 : -1, 0); else gn.setXYZ(i, rn.getX(i), rn.getY(i), rn.getZ(i)); }
   const L = CFG.dinoLook;
+  // 口（改修 D）：以前は「上あご=緑 / 下あご=クリーム」の色の境い目と、太く暗い唇の線（幅 0.07・濃さ 0.85）が顔の幅いっぱいに回り込み、あごが大きく開く（約 31°）と
+  // 口の中が顔の幅いっぱいに暗く見えて「裂けた口」になっていた。いまは、色の境い目をなくし（下あごも緑・あごの下だけクリーム）、唇の線は細く（lipW）、
+  // 顔の正面の中央（smileHalf の幅）だけに引いて、口角が少し上がった「にっこり」の短い線にする。口の中は開けたときだけ、中央に小さく見える。
   return dnPaint(g, (x, y, z, nx, ny, nz, o, i) => {
-    const ym = dnMouthY(z), flat = Math.abs(y - ym) < 1e-5, fw = flat ? dnSs(0.95, 0.72, rho[i]) : 0;   // fw：口の内側の面（上あごの天井 / 下あごの床）の度合い
+    const ym = dnMouthY(z, x), flat = Math.abs(y - ym) < 1e-5, fw = flat ? dnSs(0.95, 0.72, rho[i]) : 0;   // fw：口の内側の面（上あごの天井 / 下あごの床）の度合い
+    const sm = dnSs(L.smileHalf + 0.1, L.smileHalf - 0.1, Math.abs(x)) * dnSs(0.15, -0.25, z), inM = dnSs(0.5, 0.25, Math.abs(x)) * dnSs(0.2, -0.2, z);   // 唇の線が出る範囲 / 口の中が見える範囲（どちらも正面の中央だけ）
+    dnMixTo(o, DNC.backDark, 0.5 * dnSs(0.0, 0.7, y));
     if (lower) {
-      dnMixTo(o, DNC.belly, 0.92);
-      if (flat) { dnMixTo(o, DNC.lip, 0.85 * (1 - fw)); dnMixTo(o, DNC.tongue, fw); dnMixTo(o, DNC.mouth, fw * 0.55 * dnSs(0.25, 0.5, Math.abs(x))); }
-      else dnMixTo(o, DNC.lip, 0.85 * (1 - dnSs(0, 0.07, ym - y)));
+      dnMixTo(o, DNC.belly, 0.9 * dnSs(0.1, 0.34, ym - y));   // あごの下だけクリーム（上あごとの境い目の色の差は無い）
+      if (flat) { dnMixTo(o, DNC.tongue, fw * inM); dnMixTo(o, DNC.mouth, fw * inM * 0.4 * dnSs(0.15, 0.35, Math.abs(x))); }
+      else dnMixTo(o, DNC.lip, 0.8 * sm * (1 - dnSs(0, L.lipW, ym - y)));
     } else {
-      dnMixTo(o, DNC.backDark, 0.5 * dnSs(0.0, 0.7, y));
       dnMixTo(o, DNC.blush, 0.8 * Math.exp(-(Math.pow(Math.abs(x) - 0.52, 2) * 26 + Math.pow(y + 0.02, 2) * 30 + Math.pow(z + 0.28, 2) * 14)));
-      if (flat) { dnMixTo(o, DNC.lip, 0.85 * (1 - fw)); dnMixTo(o, DNC.mouth, fw); } else dnMixTo(o, DNC.lip, 0.85 * (1 - dnSs(0, 0.07, y - ym)));
+      if (flat) dnMixTo(o, DNC.mouth, fw * inM); else dnMixTo(o, DNC.lip, 0.8 * sm * (1 - dnSs(0, L.lipW, y - ym)));
     }
   });
 }
@@ -2629,6 +2657,57 @@ function dnToon(map, opt) {
   return m;
 }
 
+// ---- 目のテクスチャ（改修 D）：黒目 = 濃い茶〜黒の瞳＋琥珀色の虹彩のグラデーション＋うるうるの下側の反射＋ふちの暗い輪＋ハイライト（大きい光・小さい光・右下の光点）----
+function dnEyeTextures() {
+  const S = 256, mk = () => { const c = document.createElement('canvas'); c.width = c.height = S; return [c, c.getContext('2d')]; };
+  const [ce, g] = mk(), R = S / 2;
+  const disc = (ctx, x, y, r, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); };
+  g.save(); g.beginPath(); g.arc(R, R, R - 1, 0, 7); g.clip();
+  disc(g, R, R, R, '#1a0a0c');
+  const ir = g.createRadialGradient(R, R + R * 0.06, R * 0.12, R, R + R * 0.06, R * 0.95);   // 虹彩：外へ向かって 濃い茶 → 琥珀 → ふちの暗い輪
+  ir.addColorStop(0.0, '#0a0406'); ir.addColorStop(0.3, '#12070a'); ir.addColorStop(0.38, '#5e2a1a'); ir.addColorStop(0.62, '#b8661f'); ir.addColorStop(0.84, '#e9a03e'); ir.addColorStop(0.97, '#3a1a10'); ir.addColorStop(1.0, '#1a0a0c');
+  g.fillStyle = ir; g.beginPath(); g.arc(R, R, R - 2, 0, 7); g.fill();
+  const wet = g.createRadialGradient(R, R * 1.62, 0, R, R * 1.62, R * 0.62);   // うるうる：下側のふちに回り込む明るい反射
+  wet.addColorStop(0, 'rgba(255,226,150,0.75)'); wet.addColorStop(0.55, 'rgba(255,190,100,0.28)'); wet.addColorStop(1, 'rgba(255,170,80,0)');
+  g.fillStyle = wet; g.fillRect(0, 0, S, S);
+  g.restore();
+  g.fillStyle = '#fff'; g.beginPath(); g.ellipse(S * 0.36, S * 0.31, S * 0.155, S * 0.18, -0.45, 0, 7); g.fill();   // 大きい白い光
+  disc(g, S * 0.62, S * 0.22, S * 0.07, '#fff'); disc(g, S * 0.3, S * 0.6, S * 0.04, 'rgba(255,255,255,0.85)');   // 小さい白い光
+  disc(g, S * 0.68, S * 0.72, S * 0.05, 'rgba(255,255,255,0.95)');                                                // 右下の光点
+  const [cs, h] = mk(); h.fillStyle = '#fff'; h.beginPath(); h.arc(R, R, R - 1, 0, 7); h.fill(); h.strokeStyle = '#2a1230'; h.lineCap = 'round';   // ぐるぐる目：白地にうずまき
+  h.lineWidth = S * 0.045; h.beginPath(); for (let a = 0; a < 6.2 * 2; a += 0.15) { const r = (a / (6.2 * 2)) * R * 0.82 + 3, x = R + Math.cos(a) * r, y = R + Math.sin(a) * r; if (a) h.lineTo(x, y); else h.moveTo(x, y); } h.stroke();
+  h.lineWidth = S * 0.03; h.beginPath(); h.arc(R, R, R - 4, 0, 7); h.stroke();
+  const [ck, k] = mk(), cx = R;   // きらめき：十字の 4 本の光＋中心の丸い光
+  const gl = k.createRadialGradient(cx, cx, 0, cx, cx, R * 0.5); gl.addColorStop(0, 'rgba(255,255,255,1)'); gl.addColorStop(0.35, 'rgba(255,240,200,0.55)'); gl.addColorStop(1, 'rgba(255,220,160,0)');
+  k.fillStyle = gl; k.fillRect(0, 0, S, S); k.fillStyle = '#fff';
+  [[1, 0, 0.95], [0, 1, 0.95], [0.7071, 0.7071, 0.45], [-0.7071, 0.7071, 0.45]].forEach(([dx, dy, len]) => {
+    k.beginPath(); k.moveTo(cx + dx * R * len, cx + dy * R * len); k.lineTo(cx - dy * R * 0.1, cx + dx * R * 0.1); k.lineTo(cx - dx * R * len, cx - dy * R * len); k.lineTo(cx + dy * R * 0.1, cx - dx * R * 0.1); k.closePath(); k.fill();
+  });
+  const T = c => { const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; };
+  return { eye: T(ce), spiral: T(cs), star: T(ck) };
+}
+// 開けた口の絵：卵形（上がやや細い）の口の中＝上が深い赤・下へ明るく、下に舌のピンク、ふちは細い茶色の線。歯は描かない
+function dnMouthTexture() {
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S; const g = c.getContext('2d');
+  const egg = (cx, cy, rx, ry) => { g.beginPath(); g.moveTo(cx, cy - ry); g.bezierCurveTo(cx + rx * 0.62, cy - ry, cx + rx, cy - ry * 0.1, cx + rx, cy + ry * 0.25); g.bezierCurveTo(cx + rx, cy + ry * 0.8, cx + rx * 0.55, cy + ry, cx, cy + ry); g.bezierCurveTo(cx - rx * 0.55, cy + ry, cx - rx, cy + ry * 0.8, cx - rx, cy + ry * 0.25); g.bezierCurveTo(cx - rx, cy - ry * 0.1, cx - rx * 0.62, cy - ry, cx, cy - ry); g.closePath(); };
+  egg(S / 2, S / 2, S * 0.45, S * 0.46);
+  const gr = g.createLinearGradient(0, S * 0.05, 0, S * 0.95); gr.addColorStop(0, '#5a1a2c'); gr.addColorStop(0.5, '#a63048'); gr.addColorStop(1, '#c4506a');
+  g.fillStyle = gr; g.fill();
+  g.save(); egg(S / 2, S / 2, S * 0.45, S * 0.46); g.clip();
+  g.fillStyle = '#f48a9c'; g.beginPath(); g.ellipse(S / 2, S * 0.9, S * 0.34, S * 0.27, 0, 0, 7); g.fill();   // 舌
+  g.fillStyle = 'rgba(255,215,222,0.55)'; g.beginPath(); g.ellipse(S * 0.44, S * 0.74, S * 0.1, S * 0.045, -0.2, 0, 7); g.fill();
+  g.restore();
+  egg(S / 2, S / 2, S * 0.45, S * 0.46); g.lineWidth = 5; g.strokeStyle = '#7b3a2c'; g.stroke();
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+}
+
+// 黒目の殻（球の前の一部）：頂点の uv を「正面から見た平面の投影」で作り直す（テクスチャが円盤として貼れる）。軸は -z 向き。正面から見て画面の右＝ワールドの -x
+function dnEyeCap(r, th) {
+  const g = new THREE.SphereGeometry(r, 16, 8, 0, Math.PI * 2, 0, th).rotateX(-Math.PI / 2), p = g.attributes.position, uv = g.attributes.uv, rc = r * Math.sin(th);
+  for (let i = 0; i < p.count; i++) uv.setXY(i, 0.5 - p.getX(i) / (2 * rc), 0.5 + p.getY(i) / (2 * rc));
+  return g;
+}
+
 function buildDino() {
   const D = CFG.dino, L = CFG.dinoLook, TR = L.tailRings;
   ['back', 'backDark', 'stripe', 'belly', 'foot', 'claw', 'spikeBase', 'spikeTip', 'blush', 'mouth', 'tongue', 'lip'].forEach(k => { DNC[k] = new THREE.Color(L[k]); });
@@ -2666,13 +2745,29 @@ function buildDino() {
     return dnPlace(dnSpikeGeo(), t[0] * 0.95, t[1] * 0.95, t[2] * 0.95, h[3] * 0.7, h[3], h[3] * 0.7, 0.55, 0, h[0] * -0.5);
   });
   head.add(new THREE.Mesh(dnMerge(horns), skin));
+  // 開けた口：顔の正面の中央（口の線の上）に小さな丸〜卵形の口の中（深い赤・下に舌のピンク）を貼る。あご自体は小さくしか動かさない（jawMax）。閉じているときは見えない
+  const mouth = (() => {
+    const tp = [0, 0, 0]; let lo = -1.2, hi = 0.4;   // 顔の正面（x=0）で、口の線の高さ dnMouthY に表面がくる点を二分法で探す
+    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; dnSurf(0, Math.sin(m), -Math.cos(m), tp); if (tp[1] > dnMouthY(tp[2], 0)) hi = m; else lo = m; }
+    const a = (lo + hi) / 2; dnSurf(0, Math.sin(a), -Math.cos(a), tp);
+    const nrm = new THREE.Vector3(0, Math.sin(a) * 0.55, -1).normalize(), g = new THREE.Group();
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ map: dnEyeTextures.mouth || (dnEyeTextures.mouth = dnMouthTexture()), transparent: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    g.add(mesh); g.position.set(tp[0], tp[1] + 0.005, tp[2] - 0.012); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), nrm); g.visible = false; g.rotation.z += 0;   // CircleGeometry は +z 向き。-z 向きの法線へ回して貼る（両面描画）
+    head.add(g);
+    return { g, mesh, y: tp[1] };
+  })();
   const eyes = [], pups = [], lids = [], tmp = [0, 0, 0];
+  // 目（改修 D）：大きな丸い眼球（白目は細い縁だけ）に、大きな黒目（虹彩のグラデーション＋うるうるの反射＋複数のハイライトを描いたテクスチャを、丸い殻に貼る）。
+  // ぐるぐる目（被弾）のときはテクスチャをうずまきに差し替えて回す。まばたきのあとに、目のそばで小さな星がキラッと瞬く（スプライト 2 枚。毎フレームの処理は位置と大きさだけ）。
+  const E = L.eye, ET = dnEyeTextures(), eyeMat = new THREE.MeshBasicMaterial({ map: ET.eye, fog: false });
+  const capGeo = dnEyeCap(E.pupR, 82 * Math.PI / 180);
+  const starMat = new THREE.SpriteMaterial({ map: ET.star, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false, opacity: 0 }), stars = [];
   [-1, 1].forEach(s => {
     dnSurf(s * 0.5, 0.42, -0.6, tmp); const ex = tmp[0] * 0.9, ey = tmp[1] * 0.9, ez = tmp[2] * 0.9;   // 目の中心（頭の表面より少し内側 → 半分とび出す）
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 12), white); eye.position.set(ex, ey, ez); head.add(eye); eyes.push(eye);
-    const pup = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 8), black); const pb = [ex + s * 0.01, ey, ez - 0.145]; pup.position.set(pb[0], pb[1], pb[2]); head.add(pup); pups.push(pup); pup.userData.base = pb;
-    const gl = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), glint); gl.position.set(-s * 0.035, 0.05, -0.085); pup.add(gl);   // 瞳のハイライト
-    const lid = new THREE.Mesh(new THREE.SphereGeometry(0.245, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lid.position.set(ex, ey, ez); lid.rotation.x = 1.45; head.add(lid); lids.push(lid);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(E.r, 16, 12), white); eye.position.set(ex, ey, ez); head.add(eye); eyes.push(eye);
+    const pup = new THREE.Mesh(capGeo, eyeMat); const pb = [ex + s * 0.01, ey, ez - E.pupOff]; pup.position.set(pb[0], pb[1], pb[2]); head.add(pup); pups.push(pup); pup.userData.base = pb;
+    const lid = new THREE.Mesh(new THREE.SphereGeometry(E.lid, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2), lidMat); lid.position.set(ex, ey, ez); lid.rotation.x = 1.45; head.add(lid); lids.push(lid);
+    const st = new THREE.Sprite(starMat.clone()); st.position.set(ex + s * 0.22, ey + 0.2, ez - 0.2); st.scale.set(0.001, 0.001, 1); head.add(st); stars.push(st);
     dnSurf(s * 0.2, 0.3, -0.93, tmp); const nos = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), black); nos.position.set(tmp[0], tmp[1] + 0.02, tmp[2] + 0.02); nos.scale.set(1, 0.7, 1); head.add(nos);   // 鼻の穴
   });
 
@@ -2727,7 +2822,7 @@ function buildDino() {
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; shadow.scale.set(0.9, 1.4, 1);
 
   const group = new THREE.Group(); group.add(root); group.add(shadow);
-  const d = { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, lids, jawPivot, sweat, tail, phase: 0, slide: 0, lm: 0, fear: 0, panic: 0, clock: 0, idle: false, clr: null };
+  const d = { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, lids, jawPivot, sweat, tail, stars, mouth, eyeMat, ET, phase: 0, slide: 0, lm: 0, fear: 0, panic: 0, clock: 0, idle: false, clr: null };
   dinoTailUpdate(d);
   d.tris = dnTris(group) - 20;   // 影の円（20 角形）を除いた三角形数
   return d;
@@ -2764,19 +2859,29 @@ function dinoTailUpdate(d) {
 
 // 表情：widen=目の見開き 0〜1 / jaw=口の開き 0〜1 / dizzy=目が回る時計（0 なら回らない）。小さな変化だけで「焦り」を出す
 function dinoFace(d, widen, jaw, dizzy) {
-  const k = fxInt(), w = widen * k;
-  d.eyes.forEach(e => e.scale.setScalar(1 + 0.4 * w));
-  d.pups.forEach((p, i) => {
-    const b = p.userData.base;
-    p.scale.setScalar(1 - 0.35 * w);
-    if (dizzy > 0) { const a = dizzy * 13 + i * 2.1; p.position.set(b[0] * 0.8 + Math.cos(a) * 0.1, b[1] + Math.sin(a) * 0.1, b[2] + 0.1); }   // 目がぐるぐる
-    else p.position.set(b[0], b[1], b[2]);
-  });
-  d.jawPivot.rotation.x = -0.55 * jaw * k;
+  const k = fxInt(), w = widen * k, L = CFG.dinoLook, E = L.eye, es = 1 + 0.3 * w, ps = dizzy > 0 ? 1 : 1 - 0.1 * w;
   const ph = d.clock % 3.4, bl = Math.max(0, 1 - Math.abs(ph - 0.07) / 0.07);   // ときどきまばたき
-  d.lids.forEach(l => { l.scale.setScalar(1 + 0.4 * w); l.rotation.x = 1.45 - 2.0 * bl + 0.3 * w; });
+  d.eyes.forEach(e => e.scale.setScalar(es));
+  // 黒目の殻の位置：眼球（半径 E.r×es）の表面から、殻が約 75° ぶん顔を出すように、眼球の中心からの距離を決める（目の見開きで眼球が大きくなっても黒目が埋もれない）
+  const R = E.r * es, r = E.pupR * ps, dd = (-0.5176 * r + Math.sqrt(0.268 * r * r + 4 * (R * R - r * r))) / 2;
+  d.eyeMat.map = dizzy > 0 ? d.ET.spiral : d.ET.eye;
+  d.pups.forEach((p, i) => {
+    const b = p.userData.base, z0 = b[2] + E.pupOff - dd;   // 通常の位置（base は dd = pupOff のとき）から、前後だけずらす
+    p.scale.setScalar(ps); p.visible = bl < 0.5;   // まぶたが閉じるあいだは黒目を隠す（殻がまぶたより前に出ているため）
+    if (dizzy > 0) { const a = dizzy * 13 + i * 2.1; p.position.set(b[0] + Math.cos(a) * 0.035, b[1] + Math.sin(a) * 0.035, z0); p.rotation.z = -a * 1.3; }   // 目がぐるぐる（うずまきが回る）
+    else { p.position.set(b[0], b[1], z0); p.rotation.z = 0; }
+  });
+  const m = Math.max(0, Math.min(1, jaw * k));
+  d.jawPivot.rotation.x = -L.jawMax * m;
+  const M = d.mouth, op = m < 0.04 ? 0 : dnSs(0.04, 0.5, m) * 0.75 + 0.25 * m;   // 開けたときだけ、小さな丸〜卵形の口が正面に出る
+  M.g.visible = op > 0;
+  if (op > 0) { M.g.scale.set(L.mouthW * (0.45 + 0.55 * op), L.mouthH * op, 1); M.g.position.y = M.y - 0.012 - L.mouthH * op * 0.35 + 0.0; }
+  d.lids.forEach(l => { l.scale.setScalar(es); l.rotation.x = 1.45 - 2.0 * bl + 0.3 * w; });
+  d.stars.forEach((s, i) => {   // まばたきのあと、目のそばで小さな星がキラッと瞬く（左右で少しずらす）
+    const u = (ph - 0.08 - i * 0.07) / 0.5, a = u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0;
+    s.visible = a > 0.01; if (a > 0) { const sz = E.sparkle * (0.5 + 0.7 * a); s.scale.set(sz, sz, 1); s.material.opacity = a; s.material.rotation = u * 1.5; }
+  });
 }
-
 // 1 フレームの更新：ポーズを決めてから、尻尾の曲げを反映する（どのポーズでも最後に必ず通る）
 function updateDino(d, P, dt) { updateDinoPose(d, P, dt); dinoTailUpdate(d); }
 function updateDinoPose(d, P, dt) {
@@ -3429,7 +3534,7 @@ function sndSetPaused(p) {
     dino.clr = clearing ? { stage: C.stage, t: C.t, turn: clearTurn(C), shock: clearShock(C), relief: clearRelief(C) } : null;
     VOL.mega = clearing ? clearMega(C) : 0; MAG.calm = clearing;
     sndSetVolcanoMul(clearing ? clearVolMul(C) : title ? 0.7 : 1);
-    WORLD.viewAz = flowCamAz(F); WORLD.viewUp = clearing ? clearTilt(C) : 0;
+    WORLD.viewAz = flowCamAz(F); WORLD.viewUp = clearing ? clearTilt(C) : 0; WORLD.viewClear = clearing;
     if (sighT > 0) {   // ため息：口もとから白っぽい息
       sighT -= dt; dino.head.getWorldPosition(headPos);
       if (Math.random() < dt * 40) fxEmit(ROCKS.dust, headPos.x + rnd(-0.2, 0.2), headPos.y - 0.2, headPos.z + 0.9, rnd(-0.4, 0.4), rnd(0.2, 0.8), rnd(1.2, 2.4), rnd(0.9, 1.4), rnd(0.7, 1.2), 0.45, 0);

@@ -49,6 +49,7 @@ cat src/verify-head.html \
     src/verify-fx.js \
     src/verify-phase8.js \
     src/verify-pause.js \
+    src/verify-kaishuD.js \
     src/verify-tail.js \
     src/99-tail.html > verify.html
 

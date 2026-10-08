@@ -24,6 +24,9 @@ function rockSpots(size) {
   return out;
 }
 
+// 洞窟エリア：ゴール（goal.distance）の rockStop 手前から先。ここ（洞窟の手前〜クリア演出の洞窟の中）には噴石の落下地点＝危険マーカーを出さない
+function rockInCaveZone(z) { return -z >= CFG.goal.distance - CFG.goal.rockStop; }
+
 // 落下地点：着弾までに恐竜が進む距離を見込んで前方にずらす。aimed なら恐竜のいるレーンを覆う位置、そうでなければ前方のどこか（x はレーンに吸着）
 function pickRockTarget(P, size, rng, aimChance) {
   const R = CFG.rock, C = R.sizes[size];
@@ -64,6 +67,7 @@ function rockZone(P, size, x, z, rem) {
 // 反応時間 react のあと、隣のレーンへは shiftSec（＋余裕）ずつかかる。着弾までに間に合うレーンで、障害物（岩・倒木・アーチ・溜まりなど）に塞がれていないものが 1 つでもあればよい。
 // 噴石どうしが重なって安全なレーンが無くなる配置、移る時間が足りない配置を弾く（資料 §16「必ず回避可能なルートを作る」）
 function rockEscapable(S, P, cand, OB) {
+  if (rockInCaveZone(cand.z)) return false;   // 洞窟の手前〜洞窟の中には落下地点を選ばない
   const F = CFG.rock.fair, L = CFG.lane, zones = [];
   for (const r of S.rocks) { const z = rockZone(P, r.size, r.x, r.z, r.warn - r.t); if (z) zones.push(z); }
   const zc = rockZone(P, cand.size, cand.x, cand.z, cand.rem); if (zc) zones.push(zc);
@@ -97,7 +101,7 @@ function stepRocks(S, P, dt, erupting, rng, OB) {
       if (S.rocks.length < K.maxActive) {
         const size = pickRockSize(rr(rng, 0, 1), K.weights), warn = R.sizes[size].warn;
         let tg = null;   // 逃げ切れない配置になる場所は選び直す（fair.tries 回まで）。全部だめなら少し待ってやり直す
-        for (let i = 0; i < R.fair.tries && !tg; i++) { const c = pickRockTarget(P, size, rng, K.aim); if (rockEscapable(S, P, { size, x: c.x, z: c.z, rem: warn }, OB)) tg = c; }
+        for (let i = 0; i < R.fair.tries && !tg; i++) { const c = pickRockTarget(P, size, rng, K.aim); if (!rockInCaveZone(c.z) && rockEscapable(S, P, { size, x: c.x, z: c.z, rem: warn }, OB)) tg = c; }
         const r = tg ? spawnRock(S, size, tg.x, tg.z, rng) : null;
         if (r) { ev.spawned.push(r); S.timer = K.interval * (1 + R.jitter * (rr(rng, 0, 1) * 2 - 1)); } else S.timer = R.fair.retry;
       } else S.timer = 0.25;

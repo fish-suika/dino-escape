@@ -6,7 +6,7 @@
 const CAVE = {};
 
 // 入口の形：中心 (cx, cy)、左右で半幅が違う（rxL / rxR）ゆがんだ楕円。θ の方向の「ふちまでの倍率」
-const CAVE_OPEN = { cx: 0.6, cy: 5.6, rxL: 9.8, rxR: 8.2, ry: 6.4 };
+const CAVE_OPEN = { cx: 0.6, cy: 6.4, rxL: 10.6, rxR: 9.4, ry: 7.8 };   // 改修 D：火山が見えるよう、入口の開口部を一回り大きく（以前は 9.8/8.2 × 6.4・中心の高さ 5.6）
 function caveEdgeScale(t) { return 1 + 0.07 * Math.sin(3 * t + 1.1) + 0.05 * Math.sin(5 * t + 2.3) + 0.03 * Math.sin(8 * t); }
 function caveEdgePoint(t, k) { const O = CAVE_OPEN, r = caveEdgeScale(t) * (k || 1); return [O.cx + (Math.cos(t) < 0 ? O.rxL : O.rxR) * Math.cos(t) * r, O.cy + O.ry * Math.sin(t) * r]; }
 function caveInside(x, y, k) {   // 点 (x, y) が入口（k 倍に広げたもの）の中か

@@ -16,6 +16,15 @@ function obSpeedAt(dist) { return speedAt(nominalTime(dist)); }
 // 障害物の前後の広がり（この範囲に入ると触れる）
 function obExtent(ob) { return (ob.type === 'crater' || ob.type === 'pool' ? ob.r : ob.hd) + CFG.obstacle.depthPad; }
 
+// アーチの支えの柱の位置（アーチの中心から左右 ±x）。幅 n レーンのアーチは、通る n レーンの外側の境目（またはその外）にだけ柱を立てる＝走るレーンの中には立てない。
+// inner = 柱の内側のふち、gap = 柱のふちから、最も近いレーン中心（走る位置）までの距離。見た目（38-obstacles.js）も同じ値を使う
+function archPostSpec(n) {
+  const A = CFG.obstacle.arch, W = CFG.lane.width, P = A.post, x = n * W / 2 + P.off, inner = x - P.r;
+  const outer = x + P.reach, c0= n % 2 ? 0 : W / 2;   // 走る位置（レーン中心）は n が奇数なら W の倍数、偶数なら W/2 + W の倍数
+  let gap = Infinity; for (let k = -6; k <= 6; k++) { const c = c0 + k * W; gap = Math.min(gap, c < inner ? inner - c : c > outer ? c - outer : 0); }
+  return { x, inner, outer, gap };
+}
+
 // 障害物 1 個を作る。lanes = 占有するレーン番号（地上の障害物は 1 つ、アーチは 1〜2）。a・b は 0〜1 の乱数（大きさのばらつき）
 function obMake(type, lanes, dist, a, b) {
   const O = CFG.obstacle, W = CFG.lane.width, ob = { type, dist, z: -dist, hit: false, lanes: lanes.slice() };
