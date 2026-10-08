@@ -8,6 +8,8 @@ function newGame() { return { P: newPlayer(), M: newMagma(), RS: newRockSched(),
 
 // 噴火してから e 秒後のマグマの速さ magmaSpeedAt(e) は 29-difficulty-logic.js（難易度の強度に連動）
 function magmaGap(M, P) { return P.dist - M.front; }
+// 溶岩の高さの倍率（0〜1）：先端が近い（gap が小さい）ほど低くして、画面の下を覆って恐竜が見えなくなるのを防ぐ。死亡のときだけ 1（溶岩が恐竜を覆ってよい）
+function magmaViewScale(gap, dead) { const V = CFG.magma.view; return dead ? 1 : 1 - (1 - V.min) * smooth01((V.far - gap) / (V.far - V.near)); }
 // 近さ 0〜1（range 以上離れていれば 0、接触で 1）
 function magmaProx(gap, range) { return clamp01(1 - gap / range); }
 // HUD のゲージ：点灯する点の数（0〜dangerGaps.length）。近いほど多い
@@ -31,7 +33,7 @@ function stepMagma(M, P, dt, erupting) {
   M.t += dt; M.speed = magmaSpeedAt(M.t) * magmaRubber(P.dist - M.front); M.front += M.speed * dt;
   if (P.dist - M.front <= 0) {
     M.phase = 'dead'; M.deadT = 0; M.deathDist = P.dist; M.front = P.dist;
-    P.state = 'dead'; P.stateT = 0; P.vx = 0; P.vy = 0; P.kvx = 0; P.kvf = 0; P.invuln = 0; P.slow = 0; P.tumble = 0;
+    P.state = 'dead'; P.stateT = 0; P.vx = 0; P.vy = 0; P.kvx = 0; P.kvf = 0; P.invuln = 0; P.slow = 0; P.tumble = 0; lanePlayerCancel(P);
     if (P.y < 0.05) { P.y = 0; P.grounded = true; }
     return true;
   }
@@ -52,7 +54,7 @@ function stepGame(G, inp, dt, rng) {
     ev.died = stepMagma(M, P, dt, erupting);
     if (!ev.died && reachedGoal(G)) {
       M.phase = 'clear'; M.clearT = 0; ev.cleared = true; RS.rocks = [];
-      P.speed = 0; P.vx = 0; P.kvx = 0; P.kvf = 0; P.slow = 0; P.invuln = 0; P.tumble = 0; P.stumbleT = 0;
+      P.speed = 0; P.vx = 0; P.kvx = 0; P.kvf = 0; P.slow = 0; P.invuln = 0; P.tumble = 0; P.stumbleT = 0; lanePlayerCancel(P);
       if (P.state !== 'run') { P.state = 'run'; P.stateT = 0; }
       if (P.y < 0.05) { P.y = 0; P.grounded = true; }
     }

@@ -42,7 +42,7 @@ function stepFlow(F, G, inp, dt, rng) {
     else if (ev.cleared) { F.mode = 'clear'; F.clear = newClearSeq(v0, P); flowFinish(F, P); }
     return ev;
   }
-  const ev = stepGame(G, { left: false, right: false, jump: false }, dt, rng); ev.clear = [];
+  const ev = stepGame(G, { left: false, right: false, jump: false, slide: false }, dt, rng); ev.clear = [];
   if (F.mode === 'over') F.overT += dt;
   else if (F.mode === 'clear') ev.clear = clearStep(F.clear, P, dt);
   return ev;

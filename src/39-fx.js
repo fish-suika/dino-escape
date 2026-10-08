@@ -2,7 +2,7 @@
 // 計算の核（合成・上限・ヒットストップ・ダッキング・足音の数え方）は 24-fx-logic.js。ここは three.js / DOM / 音へ流すだけ。
 // 調整値は CFG.fx。CFG.fx.intensity（0〜1）で全体をまとめて弱められる。
 const FXS = fxNew();   // ヒットストップ・ダッキング・音の間隔の状態
-const FXV = { G: null, dino: null, t: 0, prevGrounded: true, prevRun: true, lastVy: 0, runAcc: 0, prevPhase: 0, takeoffT: 9, landT: 9, landStr: 0, fear: 0, panic: 0, stage: -1 };
+const FXV = { G: null, dino: null, t: 0, prevGrounded: true, prevRun: true, prevSliding: false, slideAcc: 0, lastVy: 0, runAcc: 0, prevPhase: 0, takeoffT: 9, landT: 9, landStr: 0, fear: 0, panic: 0, stage: -1 };
 
 function fxBuild(G, dino) {
   FXV.G = G; FXV.dino = dino;
@@ -13,7 +13,7 @@ function fxBuild(G, dino) {
 // 再スタート用
 function fxResetView() {
   fxReset(FXS);
-  Object.assign(FXV, { t: 0, prevGrounded: true, prevRun: true, lastVy: 0, runAcc: 0, prevPhase: 0, takeoffT: 9, landT: 9, landStr: 0, fear: 0, panic: 0, stage: -1 });
+  Object.assign(FXV, { t: 0, prevGrounded: true, prevRun: true, prevSliding: false, slideAcc: 0, lastVy: 0, runAcc: 0, prevPhase: 0, takeoffT: 9, landT: 9, landStr: 0, fear: 0, panic: 0, stage: -1 });
   if (FXV.dino) { FXV.dino.fear = 0; FXV.dino.panic = 0; FXV.dino.squash = 1; }
   if (FXV.$vig) FXV.$vig.classList.remove('on');
   if (FXV.$edge) FXV.$edge.style.opacity = 0;
@@ -94,12 +94,22 @@ function fxFrame(dt, c) {
       }
     }
   }
+  // くぐる：始まりで「ズサッ」と砂煙。滑っている間は足もとから砂煙が後ろへ流れる
+  if (run && P.sliding && !FXV.prevSliding) {
+    sndSlide(); FXV.slideAcc = 0;
+    for (let i = 0; i < Math.round(10 * k); i++) fxEmit(ROCKS.dust, P.x + rnd(-0.6, 0.6), 0.15, P.z + rnd(0, 1.2), rnd(-2, 2), rnd(0.5, 2), rnd(2, 6), rnd(0.5, 0.9), rnd(1.6, 2.6), 0.5, 0);
+  }
+  if (run && P.sliding) {
+    FXV.slideAcc += dt * 70 * k;
+    while (FXV.slideAcc >= 1) { FXV.slideAcc -= 1; fxEmit(ROCKS.dust, P.x + rnd(-0.7, 0.7), 0.15, P.z + rnd(0, 1.6), rnd(-2.5, 2.5), rnd(0.4, 1.8), rnd(3, 7), rnd(0.4, 0.8), rnd(1.2, 2.2), 0.45, 0); }
+  }
+  FXV.prevSliding = !!(run && P.sliding);
   if (!P.grounded) FXV.lastVy = P.vy;
   FXV.prevGrounded = P.grounded; FXV.prevRun = run;
   d.squash = fxSquash(FXV.takeoffT, FXV.landT, FXV.landStr);
   // 足音（速度連動：速いほど歩数が増え、少し強くなる）と走りの土煙
   const steps = fxStepCount(FXV.prevPhase, d.phase); FXV.prevPhase = d.phase;
-  if (run && P.grounded && P.speed > 2) {
+  if (run && P.grounded && P.speed > 2 && !P.sliding) {
     for (let i = 0; i < steps; i++) sndStep(P.speed / CFG.run.maxSpeed);
     FXV.runAcc += P.speed * dt * F.runDust.perUnit * k;
     while (FXV.runAcc >= 1) {

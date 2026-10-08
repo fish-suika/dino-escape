@@ -1,5 +1,6 @@
 // ===== 3D ステージ：空・フォグ・地面・装飾・カメラ =====
 const WORLD = {};
+const LANE_LINE = { len: 320, period: 6, ahead: 140 };   // レーンの区切り線：長さ / 破線 1 周期の長さ / 手前から先へ伸ばす中心のずれ
 
 function rnd(a, b) { return a + Math.random() * (b - a); }
 
@@ -46,6 +47,17 @@ function buildWorld() {
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(W.groundSize, W.groundSize), new THREE.MeshLambertMaterial({ map: gtex }));
   ground.rotation.x = -Math.PI / 2; scene.add(ground);
 
+  // レーンの区切り線：走る道が 3 本あることが分かる、うっすらした破線（地面と一緒に手前へ流れる）。左右の端の線は道の縁
+  const lc = document.createElement('canvas'); lc.width = 8; lc.height = 64;
+  const lg = lc.getContext('2d'); lg.fillStyle = '#fff'; lg.fillRect(0, 0, 8, 38);
+  const ltex = new THREE.CanvasTexture(lc); ltex.wrapS = ltex.wrapT = THREE.RepeatWrapping; ltex.repeat.set(1, LANE_LINE.len / LANE_LINE.period);
+  const lmat = new THREE.MeshBasicMaterial({ map: ltex, color: 0xe0b890, transparent: true, opacity: 0.32, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const laneLines = [];
+  for (let i = 0; i <= CFG.lane.count; i++) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(i === 0 || i === CFG.lane.count ? 0.3 : 0.18, LANE_LINE.len), lmat);
+    m.rotation.x = -Math.PI / 2; m.position.set((i - CFG.lane.count / 2) * CFG.lane.width, 0.02, 0); scene.add(m); laneLines.push(m);
+  }
+
   // 装飾（岩・丘）。障害物ではなく見た目だけ。遊べる範囲（±clearHalf）の外側に置く
   const rockMat = new THREE.MeshLambertMaterial({ color: 0x4d4440, flatShading: true });
   const rockMat2 = new THREE.MeshLambertMaterial({ color: 0x5f524b, flatShading: true });
@@ -69,7 +81,7 @@ function buildWorld() {
   }
   decor.forEach(d => place(d, true, 0));
 
-  Object.assign(WORLD, { renderer, scene, camera, ground, gtex, decor, place, camX: 0, lookX: 0, camReady: false });
+  Object.assign(WORLD, { renderer, scene, camera, ground, gtex, decor, place, laneLines, ltex, camX: 0, lookX: 0, camReady: false });
   fit();
   addEventListener('resize', fit);
 }
@@ -85,13 +97,14 @@ function updateWorld(P, dt) {
   WORLD.ground.position.z = P.z;
   const tile = W.groundSize / W.texRepeat;
   WORLD.gtex.offset.y = P.dist / tile;   // 地面が手前へ流れる（前方は -z）
+  WORLD.ltex.offset.y = (P.dist + LANE_LINE.ahead) / LANE_LINE.period; WORLD.laneLines.forEach(m => { m.position.z = P.z - LANE_LINE.ahead; });   // 区切り線は先の方まで伸ばし、破線は地面と同じ向きに流す
   WORLD.decor.forEach(d => { if (d.mesh.position.z > P.z + W.spawnBehind) WORLD.place(d, false, P.z); });
 
   // カメラ：後方上から見下ろす。横と高さはなめらかに追従、前後は一定距離
-  const k = 1 - Math.exp(-C.follow * dt);
+  const k = 1 - Math.exp(-C.follow * dt), kx = 1 - Math.exp(-C.followXSpeed * dt);   // 横はゆっくり（レーン移動で画面が揺れすぎない）
   if (!WORLD.camReady) { WORLD.camX = P.x * C.followX; WORLD.lookX = P.x * C.lookFollowX; WORLD.camY = C.height; WORLD.camReady = true; }
-  WORLD.camX += (P.x * C.followX - WORLD.camX) * k;
-  WORLD.lookX += (P.x * C.lookFollowX - WORLD.lookX) * k;
+  WORLD.camX += (P.x * C.followX - WORLD.camX) * kx;
+  WORLD.lookX += (P.x * C.lookFollowX - WORLD.lookX) * kx;
   WORLD.camY += (C.height + P.y * C.jumpLift - WORLD.camY) * k;
   let px = WORLD.camX, py = WORLD.camY, pz = P.z + C.back, lx = WORLD.lookX, ly = C.lookY, lz = P.z - C.lookAhead;
   const a = WORLD.viewAz || 0;   // 回り込み角（タイトル画面・クリアの振り返り）。0 なら通常。恐竜のまわりを回り、a が大きいほど火山（後ろ）側から見る

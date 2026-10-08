@@ -17,43 +17,63 @@ function obDensity(dist, level) {
 }
 
 // 枠 k の「素の」障害物（他との兼ね合いを見る前）。無ければ null。乱数は常に同じ順に使う
+// 障害物はレーン単位で置く：岩・クレーター・マグマ溜まりは 1 レーン、倒木・アーチは 1〜2 レーン。ob.lanes = 占有するレーン番号、ob.x = 中心
 function obSlot(seed, k, level) {
-  const O = CFG.obstacle, rng = obRng(seed, k);
+  const O = CFG.obstacle, L = CFG.lane, W = L.width, rng = obRng(seed, k);
   const u = O.startDist + k * O.slotStep + rng() * (O.slotStep - O.minGapZ);   // 基準速度での位置
   const dist = O.startDist + (u - O.startDist) * speedScaleAtDist(u);   // 速く走るほど間隔を広げる（時間で見た間隔・ジャンプの余裕が一定になる。単調増加なので順序と最低間隔 minGapZ は保たれる）
   const fill = rng(), pick = rng(), a = rng(), b = rng(), c = rng();
   if (fill >= obDensity(dist, level)) return null;
-  const types = ['rock', 'log', 'crater', 'pool'].filter(t => dist - O.startDist >= O.unlock[t] && O.weights[t] > 0);
+  const types = ['rock', 'log', 'crater', 'pool', 'arch'].filter(t => dist - O.startDist >= O.unlock[t] && O.weights[t] > 0);
   if (!types.length) return null;
   let tot = 0; for (const t of types) tot += O.weights[t];
   let x = pick * tot, type = types[types.length - 1];
   for (const t of types) { if (x < O.weights[t]) { type = t; break; } x -= O.weights[t]; }
-  const lim = CFG.move.maxX, ob = { type, dist, z: -dist, hit: false };
+  const ob = { type, dist, z: -dist, hit: false };
+  const ln = Math.min(L.count - 1, Math.floor(c * L.count)), pr = Math.min(L.count - 2, Math.floor(c * (L.count - 1)));   // 1 レーンの番号 / 2 レーンの左側の番号
+  const one = { lanes: [ln], x: laneX(ln) }, two = { lanes: [pr, pr + 1], x: (laneX(pr) + laneX(pr + 1)) / 2 };
   if (type === 'rock') {
     const R = O.rock, r = obLerp(R.rMin, R.rMax, a);
-    Object.assign(ob, { x: (c * 2 - 1) * (lim - 1), r, h: obLerp(R.hMin, R.hMax, b), hw: r * R.shrink, hd: r * R.shrink });
+    Object.assign(ob, one, { r, h: obLerp(R.hMin, R.hMax, b), hw: r * R.shrink, hd: r * R.shrink });
   } else if (type === 'log') {
-    const L = O.log, len = obLerp(L.lenMin, L.lenMax, a), reach = Math.max(0, lim + L.overhang - len / 2);
-    Object.assign(ob, { x: (c * 2 - 1) * reach, len, h: L.h, hw: len / 2, hd: L.r, r: L.r });
+    const Lg = O.log, n = a < Lg.oneLane ? 1 : 2, len = n * W - Lg.trim;
+    Object.assign(ob, n === 1 ? one : two, { len, h: Lg.h, hw: len / 2, hd: Lg.r, r: Lg.r });
   } else if (type === 'crater') {
     const C = O.crater, r = obLerp(C.rMin, C.rMax, a);
-    Object.assign(ob, { x: (c * 2 - 1) * (lim - 1), r, h: C.clearY, hw: r, hd: r });
-  } else {
+    Object.assign(ob, one, { r, h: C.clearY, hw: r, hd: r });
+  } else if (type === 'pool') {
     const Pl = O.pool, r = obLerp(Pl.rMin, Pl.rMax, a);
-    Object.assign(ob, { x: (c * 2 - 1) * (lim - r * 0.5), r, h: Pl.clearY, hw: r, hd: r });
+    Object.assign(ob, one, { r, h: Pl.clearY, hw: r, hd: r });
+  } else {   // arch：梁が clear の高さにかかる。立ったままだと頭が当たり、滑走（くぐる）なら通れ、ジャンプでは越えられない
+    const A = O.arch, n = b < A.oneLane ? 1 : 2, hw = n * W / 2 - A.inset;
+    Object.assign(ob, n === 1 ? one : two, { hw, hd: A.hd, r: A.hd, h: A.clear, clear: A.clear, top: A.clear + A.beamH });
   }
   return ob;
 }
 
-// 枠 k の最終的な障害物。近くに倒木（素の判定）があれば、倒木自身が後ろの枠なら消し、他の種類は消す（倒木の前後を空ける）
+// 枠 k の最終的な障害物。近くに倒木（素の判定）があれば、倒木自身が後ろの枠なら消し、他の種類は消す（倒木の前後を空ける）。
+// アーチ（くぐる）の前後 arch.gapZ 以内にも他の障害物を置かない（滑走が終わる前に着地できない並びを避ける。アーチどうしは後ろを消す）。アーチ自身が倒木に消されるときは、他を消す力もなくなる
+function archAlive(seed, k, level, arch) {
+  const O = CFG.obstacle;
+  for (let j = -3; j <= 3; j++) {
+    if (j === 0 || k + j < 0) continue;
+    const n = obSlot(seed, k + j, level);
+    if (n && n.type === 'log' && Math.abs(n.dist - arch.dist) < O.logClearZ * speedScaleAtDist(arch.dist)) return false;
+  }
+  return true;
+}
 function obFinal(seed, k, level) {
   const O = CFG.obstacle, ob = obSlot(seed, k, level);
   if (!ob) return null;
   for (let j = -3; j <= 3; j++) {
     if (j === 0 || k + j < 0) continue;
     const n = obSlot(seed, k + j, level);
-    if (!n || n.type !== 'log' || Math.abs(n.dist - ob.dist) >= O.logClearZ * speedScaleAtDist(ob.dist)) continue;
-    if (ob.type !== 'log' || j < 0) return null;
+    if (!n) continue;
+    if (n.type === 'log' && Math.abs(n.dist - ob.dist) < O.logClearZ * speedScaleAtDist(ob.dist)) {
+      if (ob.type !== 'log' || j < 0) return null;
+    } else if (n.type === 'arch' && ob.type !== 'log' && Math.abs(n.dist - ob.dist) < O.arch.gapZ * speedScaleAtDist(ob.dist) && archAlive(seed, k + j, level, n)) {
+      if (ob.type !== 'arch' || j < 0) return null;
+    }
   }
   return ob;
 }
@@ -78,7 +98,7 @@ function tripPlayer(P, T) {
   P.state = 'knocked'; P.stateT = 0; P.knockT = T.knock; P.power = 0.5;
   P.kvx = 0; P.kvf = T.fwd; P.vx = 0; P.vy = T.up; P.y = Math.max(P.y, 0) + 0.01; P.grounded = false;
   P.tumble = 0; P.spinRate = -T.spin;
-  P.slow = T.slowSec; P.slowF = T.slowFactor; P.trips++;
+  P.slow = T.slowSec; P.slowF = T.slowFactor; P.trips++; lanePlayerCancel(P);
 }
 // クレーター：転倒せず、少しつまずいて軽く減速
 function stumblePlayer(P) {
@@ -91,6 +111,10 @@ function stumblePlayer(P) {
 function obHits(ob, P, prevZ) {
   const O = CFG.obstacle;
   const top = ob.h - (ob.type === 'rock' || ob.type === 'log' ? O.footMargin : 0);   // 岩・倒木は少し甘め
+  if (ob.type === 'arch') {   // 頭上の障害物：梁の高さ [clear, top] と、立ち（または滑走中）の体の高さ [y, y+高さ] が重なると当たる
+    if (ob.hit || P.y + playerHeight(P) <= ob.clear || P.y >= ob.top) return false;
+    return Math.abs(P.x - ob.x) < ob.hw + O.dinoR && P.z <= ob.z + ob.hd + O.depthPad && prevZ >= ob.z - ob.hd - O.depthPad;
+  }
   if (ob.hit || P.y >= top) return false;
   const dx = Math.abs(P.x - ob.x);
   if (ob.type === 'rock' || ob.type === 'log') {

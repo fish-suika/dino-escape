@@ -52,7 +52,7 @@ function buildDino() {
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.03; shadow.scale.set(0.9, 1.4, 1);
 
   const group = new THREE.Group(); group.add(root); group.add(shadow);
-  return { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, jawPivot, sweat, phase: 0, air: 0, fear: 0, panic: 0, squash: 1, clock: 0, idle: false, clr: null };
+  return { group, root, body, head, tail1, tail2, legs, shadow, torso, eyes, pups, jawPivot, sweat, phase: 0, air: 0, slide: 0, fear: 0, panic: 0, squash: 1, clock: 0, idle: false, clr: null };
 }
 
 // 表情：widen=目の見開き 0〜1 / jaw=口の開き 0〜1 / dizzy=目が回る時計（0 なら回らない）。小さな変化だけで「焦り」を出す
@@ -72,6 +72,7 @@ function updateDino(d, P, dt) {
   const D = CFG.dino, k = fxInt(), fear = d.fear || 0, panic = d.panic || 0;
   d.phase += P.speed * dt * D.runFreq * (1 + 0.45 * panic * k);   // マグマが近いと脚の回転が速い（必死な走り）
   d.air += ((P.grounded ? 0 : 1) - d.air) * (1 - Math.exp(-14 * dt));   // 空中ポーズへのなめらかな切り替え
+  d.slide += ((P.state === 'run' && P.sliding && !d.idle ? 1 : 0) - d.slide) * (1 - Math.exp(-18 * dt));   // くぐる（スライド）ポーズへのなめらかな切り替え
   const sw = Math.sin(d.phase), a = d.air, g = 1 - a;
   d.group.position.set(P.x, 0, P.z);
   d.group.visible = !(P.invuln > 0 && Math.floor(P.time * 14) % 2 === 0);   // 復帰後の無敵中は点滅
@@ -86,8 +87,9 @@ function updateDino(d, P, dt) {
   d.body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
   d.root.position.y = P.y;
   const H = CFG.hit, dz = P.invuln > H.invulnSec - 0.6 ? (P.invuln - (H.invulnSec - 0.6)) / 0.6 : 0;   // 起き上がった直後：目が回ってよろめく
-  d.root.rotation.z = -P.vx * D.lean + Math.sin(P.time * 15) * 0.12 * dz;
-  d.root.rotation.y = -P.vx * D.lean * 0.7;
+  const lean = Math.max(-D.leanMax, Math.min(D.leanMax, P.vx * D.lean));   // レーン移動の間だけ横へ傾く
+  d.root.rotation.z = -lean + Math.sin(P.time * 15) * 0.12 * dz;
+  d.root.rotation.y = -lean * 0.7;
   const st = P.stumbleT > 0 ? Math.sin(P.stumbleT / CFG.obstacle.stumble.tiltSec * Math.PI) : 0;   // クレーターでつまずく：前のめりにガクッ
   d.body.position.y = g * Math.abs(sw) * D.bob - st * 0.18;
   d.body.rotation.x = g * Math.sin(d.phase * 2) * 0.04 + a * Math.max(-0.5, Math.min(0.5, P.vy * 0.03)) - st * 0.45;   // 上昇で鼻先が上、下降で下
@@ -101,6 +103,15 @@ function updateDino(d, P, dt) {
   d.head.rotation.x = g * -Math.sin(d.phase * 2) * 0.05 - a * 0.15;
   d.head.position.y = 2.2 + g * Math.sin(d.phase * 2 + 0.6) * 0.05 * (1 + panic * k);   // 走りで頭が上下に揺れる
   d.torso.scale.y = 0.8 * (1 + 0.025 * Math.sin(P.time * (9 + 6 * panic)) * k);   // 呼吸
+  // くぐる：頭と体を低くして、足を前に投げ出す（背の高さが 1u ほどになる）。スライド中は走りの揺れを抑える
+  const sl = d.slide;
+  if (sl > 0.01) {
+    d.root.position.y = P.y - 0.45 * sl;
+    d.body.scale.y *= 1 - 0.45 * sl; d.body.scale.x *= 1 + 0.08 * sl; d.body.scale.z *= 1 + 0.08 * sl;
+    d.body.rotation.x += 0.32 * sl; d.body.position.y *= 1 - sl;
+    d.legs[0].rotation.x += (1.15 - d.legs[0].rotation.x) * sl; d.legs[1].rotation.x += (0.85 - d.legs[1].rotation.x) * sl;
+    d.tail1.rotation.x += -0.25 * sl; d.head.rotation.x += -0.2 * sl; d.head.position.y -= 0.12 * sl;
+  }
   dinoFace(d, Math.max(fear, panic * 0.7, dz * 0.5), Math.max(panic * 0.9, fear * 0.35) + 0.1 * Math.max(0, Math.sin(P.time * (10 + 6 * panic))) * panic, dz > 0 ? P.time : 0);
   d.shadow.position.set(0, 0.03, 0); d.shadow.material.opacity = 0.35 * (1 - Math.min(1, P.y / 6) * 0.6);
   const ss = 1 - Math.min(0.5, P.y * 0.07); d.shadow.scale.set(0.9 * ss, 1.4 * ss, 1);

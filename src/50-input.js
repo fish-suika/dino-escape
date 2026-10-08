@@ -1,11 +1,12 @@
 // ===== キー入力（PC のみ） =====
-const KEYS = { left: false, right: false, jumpQ: false };
-const KEYMAP = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+// 左右・ジャンプ・くぐるは「押した瞬間」だけを覚える（xxQ）。押しっぱなしでは繰り返さない（e.repeat は無視）。1 回の押下 = 1 レーン
+const KEYS = { leftQ: false, rightQ: false, jumpQ: false, slideQ: false };
+const KEYMAP = { ArrowLeft: 'leftQ', KeyA: 'leftQ', ArrowRight: 'rightQ', KeyD: 'rightQ', ArrowDown: 'slideQ', KeyS: 'slideQ', Space: 'jumpQ' };
+function keysClear() { KEYS.leftQ = KEYS.rightQ = KEYS.jumpQ = KEYS.slideQ = false; }
 function bindInput() {
   addEventListener('keydown', e => {
-    if (KEYMAP[e.code]) { KEYS[KEYMAP[e.code]] = true; e.preventDefault(); }
-    else if (e.code === 'Space') { if (!e.repeat) KEYS.jumpQ = true; e.preventDefault(); }
+    const k = KEYMAP[e.code];
+    if (k) { if (!e.repeat) KEYS[k] = true; e.preventDefault(); }
   });
-  addEventListener('keyup', e => { if (KEYMAP[e.code]) { KEYS[KEYMAP[e.code]] = false; e.preventDefault(); } });
-  addEventListener('blur', () => { KEYS.left = KEYS.right = KEYS.jumpQ = false; });
+  addEventListener('blur', keysClear);
 }

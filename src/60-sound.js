@@ -185,6 +185,14 @@ function sndLand(str) {
   sndTone(c, SND.master, t, 0.16, 'sine', 120, 42, 0.36 * v, 0.004);
   sndBurst(c, SND.master, t, 0.2, 'lowpass', 1500, 160, 0.26 * v, 0.7);
 }
+// くぐる「ズサッ」：砂をこする音（高めから低めへ落ちる風切りと、地面をこする低い音）
+function sndSlide() {
+  const c = SND.ctx; if (!c || c.state !== 'running') return;
+  const t = c.currentTime, v = CFG.sound.vol.slide;
+  sndBurst(c, SND.master, t, 0.34, 'bandpass', 1700, 420, 0.3 * v, 0.8);
+  sndBurst(c, SND.master, t, 0.22, 'lowpass', 900, 200, 0.2 * v, 0.7);
+  sndTone(c, SND.master, t, 0.12, 'sine', 150, 55, 0.2 * v, 0.004);
+}
 // 危険度が上がったときのスティンガー：低い不穏な 2 音（段階が高いほど重く、最終は 3 音）
 function sndStinger(stage) {
   const c = SND.ctx; if (!c || c.state !== 'running') return;

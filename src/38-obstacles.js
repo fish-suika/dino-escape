@@ -21,6 +21,8 @@ function buildObstacles() {
     mat.transparent = true; mat.depthWrite = false; mat.side = THREE.DoubleSide; mat.polygonOffset = true; mat.polygonOffsetFactor = off; mat.polygonOffsetUnits = off;
     const m = new THREE.Mesh(geo, mat); m.rotation.x = -Math.PI / 2; m.position.y = y; return m;
   };
+  const pillarGeo = new THREE.CylinderGeometry(0.34, 0.5, 1, 6, 1).translate(0, 0.5, 0), slabGeo = new THREE.BoxGeometry(1, 1, 1);   // アーチの柱（根もとが太い・高さ 1）/ 岩のアーチの梁
+  const archShadeGeo = new THREE.PlaneGeometry(1, 1), archShadeMat = new THREE.MeshBasicMaterial({ color: 0x000000, opacity: 0.38 }), archRimMat = new THREE.MeshBasicMaterial({ color: 0xe9a468, side: THREE.BackSide });
   const ringGeo = new THREE.RingGeometry(0.8, 1.12, 32), discGeo = new THREE.CircleGeometry(1, 36), crustGeo = new THREE.RingGeometry(0.96, 1.3, 36);
   const rimGroundMat = new THREE.MeshLambertMaterial({ color: 0x75604f });
   const holeMat = new THREE.MeshBasicMaterial({ color: 0x0b0605 });
@@ -46,6 +48,20 @@ function buildObstacles() {
       const g = new THREE.Group(), fg = new THREE.Group();   // fg：半径倍に拡大する平面だけの入れ物
       fg.add(flat(ringGeo, rimGroundMat.clone(), 0.05, -2), flat(discGeo, holeMat.clone(), 0.06, -3));
       const inner = flat(discGeo, holeMat2.clone(), 0.07, -4); inner.scale.set(0.55, 0.55, 1); fg.add(inner); g.add(fg); g.userData.fg = fg; return g;
+    },
+    arch() {   // 頭上の障害物。2 種類（焦げた大木のアーチ / 岩のアーチ）のどちらかを id で選ぶ。下がぽっかり空いていて、くぐれると一目で分かる形
+      const g = new THREE.Group(), A = CFG.obstacle.arch;
+      const shade = flat(archShadeGeo, archShadeMat.clone(), 0.04, -1);   // 足もとの暗い影（下に空間があることを示す）
+      const tree = new THREE.Group(), rock = new THREE.Group();
+      const trunkL = new THREE.Mesh(pillarGeo, logMat), trunkR = new THREE.Mesh(pillarGeo, logMat), beam = new THREE.Mesh(logGeo, logMat);
+      const hang = [0, 1, 2, 3].map(() => { const s = new THREE.Mesh(stubGeo, stubMat); s.rotation.x = Math.PI; tree.add(s); return s; });
+      const caps = [-1, 1].map(s => { const c = new THREE.Mesh(capGeo, capMat); c.rotation.y = s * Math.PI / 2; tree.add(c); return c; });
+      tree.add(trunkL, trunkR, beam);
+      const rockL = new THREE.Mesh(rockGeo, rockMat), rockR = new THREE.Mesh(rockGeo, rockMat), slab = new THREE.Mesh(slabGeo, rockMat), rim = new THREE.Mesh(slabGeo, archRimMat);
+      rock.add(rockL, rockR, slab, rim);
+      g.add(shade, tree, rock);
+      g.userData = { shade, tree, rock, trunkL, trunkR, beam, hang, caps, rockL, rockR, slab, rim };
+      return g;
     },
     pool() {
       const g = new THREE.Group(), fg = new THREE.Group(), glow = new THREE.Sprite(glowMat);
@@ -75,6 +91,26 @@ function obstacleSlotFor(ob) {
     u.stubs.forEach((s, i) => { s.position.set(ob.len * (-0.3 + 0.3 * i + ((ob.id * 0.37 + i) % 1) * 0.1), ob.r * 1.5, ((i + ob.id) % 2 ? 0.2 : -0.2)); s.rotation.set((i + ob.id) % 2 ? 0.5 : -0.5, 0, ((i + ob.id) % 3 - 1) * 0.25); });
     u.caps.forEach((c, i) => { c.position.set((i ? 1 : -1) * ob.len / 2, ob.r, 0); c.scale.setScalar(ob.r / 0.85 * 0.95); });
     g.rotation.y = ((ob.id * 0.61) % 1 - 0.5) * 0.14;   // ほんの少し斜め（当たり判定は軸平行のまま。見た目の誤差は ±0.7u 以内）
+  } else if (ob.type === 'arch') {
+    const hw = ob.hw, A = CFG.obstacle.arch, top = ob.top, tree = ob.id % 2 === 0, k = ob.id * 0.37;
+    u.tree.visible = tree; u.rock.visible = !tree;
+    u.shade.scale.set(2 * hw + 0.6, 2 * ob.hd + 3.2, 1);
+    if (tree) {   // 焦げた大木：2 本の柱に太い幹がかかる。幹の下に焦げた枝が垂れる。切り口は赤くくすぶる
+      const len = 2 * hw + 0.7, r = A.beamH / 2;
+      u.trunkL.scale.set(1, top - 0.1, 1); u.trunkR.scale.set(1, top - 0.1, 1);
+      u.trunkL.position.set(-(hw - 0.35), 0, 0.1 * Math.sin(k)); u.trunkR.position.set(hw - 0.35, 0, -0.1 * Math.sin(k));
+      u.trunkL.rotation.set(0, 0, 0.05); u.trunkR.rotation.set(0, 0, -0.05);
+      u.beam.scale.set(len, r, r); u.beam.position.set(0, A.clear + r, 0); u.beam.rotation.z = 0.03 * Math.sin(k * 2);
+      u.hang.forEach((s, i) => { s.position.set(hw * (-0.62 + 0.42 * i + 0.1 * Math.sin(k + i)), A.clear - 0.3 - 0.05 * (i % 2), 0.1 * (i % 2 ? 1 : -1)); s.scale.set(0.9, 0.7 + 0.25 * ((i + ob.id) % 3), 0.9); s.rotation.z = 0.2 * (i % 2 ? 1 : -1); });
+      u.caps.forEach((c, i) => { c.position.set((i ? 1 : -1) * len / 2, A.clear + r, 0); c.scale.setScalar(r / 0.85 * 0.95); });
+    } else {   // 岩のアーチ：2 つの岩の柱に平たい岩の梁
+      const rr = A.hd;
+      u.rockL.scale.set(0.95, top * 0.5, rr); u.rockR.scale.set(0.95, top * 0.5, rr);
+      u.rockL.position.set(-(hw - 0.4), top * 0.48, 0); u.rockR.position.set(hw - 0.4, top * 0.48, 0);
+      u.rockL.rotation.y = k; u.rockR.rotation.y = -k;
+      u.slab.scale.set(2 * hw + 0.5, A.beamH, 2 * ob.hd); u.slab.position.set(0, A.clear + A.beamH / 2, 0);
+      u.rim.scale.copy(u.slab.scale).multiplyScalar(1.05); u.rim.position.copy(u.slab.position);
+    }
   } else {
     u.fg.scale.set(ob.r, 1, ob.r);   // 平らな円なので半径倍
     if (ob.type === 'pool') { u.glow.scale.set(ob.r * 2.6, ob.r * 2.6, 1); u.glow.userData.s = ob.r * 2.6; }

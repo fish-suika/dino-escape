@@ -193,7 +193,7 @@
     return true;
   })());
   check('クリア演出：実際に流して、クリア時の距離から stopDist 先で停止し(P.speed=0)、洞窟の中央(x=0)に寄る。クリア時の結果距離は到達時の値', (() => {
-    const { G, F } = nearGoal(); G.P.x = 9; toClear(G, F); const d0 = G.P.dist, fd = F.dist;
+    const { G, F } = nearGoal(); G.P.lane = 2; G.P.x = laneX(2); toClear(G, F); const d0 = G.P.dist, fd = F.dist;
     for (let i = 0; i < 60 * (K.runIn + 0.5); i++) stepFlow(F, G, NOI, DT);
     return Math.abs(G.P.dist - (F.clear.d0 + K.stopDist)) < 1e-6 && G.P.speed === 0 && Math.abs(G.P.x) < 1e-9 && fd === Math.floor(F.clear.d0) && d0 >= CFG.goal.distance && Math.abs(G.P.z + G.P.dist) < 1e-9;
   })());

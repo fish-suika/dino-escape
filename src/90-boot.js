@@ -75,7 +75,7 @@
   // R：全状態を初期化して最初から（噴火・噴石・マグマ・恐竜・揺れ・フラッシュ・音・粒子）。タイトルは経由しない。オブジェクトは作り直さない
   function restart() {
     flowRestart(F, G, newSeed()); erupted = false; fx = volcanoState(0); shown = -1; overShown = false; sighT = 0;
-    KEYS.left = KEYS.right = KEYS.jumpQ = false;
+    keysClear();
     resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
     dino.phase = 0; dino.air = 0; dino.group.visible = true; dino.clr = null; dino.idle = false;
     [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); hudReset(); shownDanger = -1; $flash.style.opacity = 0;
@@ -85,14 +85,14 @@
   // Space：タイトルから開始。このキー入力で WebAudio も resume される（bindSound が先に呼ぶ）
   function startGame() {
     if (!flowStart(F)) return false;
-    KEYS.jumpQ = false; hudMode('playing'); fxRestartHint();
+    keysClear(); hudMode('playing'); fxRestartHint();
     return true;
   }
 
   function update(dt) {
     // 吹き飛び・起き上がり中は stepPlayer が入力を無視する。dead の間は stepGame が前進・操作・噴石の新規生成を止める。title の間は何も進めない
-    const ev = stepFlow(F, G, { left: KEYS.left, right: KEYS.right, jump: KEYS.jumpQ }, dt);
-    KEYS.jumpQ = false;
+    const ev = stepFlow(F, G, { left: KEYS.leftQ, right: KEYS.rightQ, jump: KEYS.jumpQ, slide: KEYS.slideQ }, dt);
+    keysClear();
     const mode = F.mode, C = F.clear, title = mode === 'title', playing = mode === 'playing', clearing = mode === 'clear';
     hudMode(mode);
     fx = volcanoState(P.time);

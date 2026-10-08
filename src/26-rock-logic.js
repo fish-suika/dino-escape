@@ -8,14 +8,31 @@ function pickRockSize(r, weights) {
   return x < w.small ? 'small' : x < w.small + w.mid ? 'mid' : 'large';
 }
 
-// 落下地点：着弾までに恐竜が進む距離を見込んで前方にずらす。aimed なら恐竜の予想位置の近く、そうでなければ前方の荒野のどこか
+// 落下地点の候補（x）：レーンの中心とレーンの間。着弾の当たり円がちょうど何レーンぶんの中心を覆うかを数え、
+// 小型=1 レーン / 中型=1〜2 レーン / 大型=2 レーン（全レーンを覆う配置は置かない＝必ず安全なレーンが残る）だけ残す
+function rockCovered(x, size) {   // 当たり円が覆うレーン番号
+  const R = CFG.rock.sizes[size].radius + CFG.hit.dinoR, out = [];
+  for (let i = 0; i < CFG.lane.count; i++) if (Math.abs(laneX(i) - x) < R) out.push(i);
+  return out;
+}
+function rockSpots(size) {
+  const n = CFG.lane.count, out = [];
+  for (let k = 0; k < 2 * n - 1; k++) {
+    const x = (laneX(0) + laneX(n - 1)) / 2 + (k - (n - 1)) * CFG.lane.width / 2, c = rockCovered(x, size).length;
+    if (size === 'small' ? c === 1 : c >= 1 && c <= n - 1) out.push({ x, lanes: rockCovered(x, size) });
+  }
+  return out;
+}
+
+// 落下地点：着弾までに恐竜が進む距離を見込んで前方にずらす。aimed なら恐竜のいるレーンを覆う位置、そうでなければ前方のどこか（x はレーンに吸着）
 function pickRockTarget(P, size, rng, aimChance) {
-  const R = CFG.rock, C = R.sizes[size], lim = CFG.move.maxX + R.edgeMargin;
+  const R = CFG.rock, C = R.sizes[size];
   const lead = Math.max(0, P.speed) * C.warn, aimed = rr(rng, 0, 1) < (aimChance == null ? R.aimChance : aimChance);
-  let x, z;
-  if (aimed) { x = P.x + rr(rng, -R.aimJitterX, R.aimJitterX); z = P.z - lead + rr(rng, -R.aimJitterZ, R.aimJitterZ); }
-  else { x = rr(rng, -R.spreadX, R.spreadX); z = P.z - lead - rr(rng, 3, R.aheadExtra); }
-  return { x: Math.max(-lim, Math.min(lim, x)), z, aimed };
+  let spots = rockSpots(size), z;
+  if (aimed) { const hit = spots.filter(s => s.lanes.indexOf(P.lane) >= 0); if (hit.length) spots = hit; z = P.z - lead + rr(rng, -R.aimJitterZ, R.aimJitterZ); }
+  else z = P.z - lead - rr(rng, 3, R.aheadExtra);
+  const s = spots[Math.min(spots.length - 1, Math.floor(rr(rng, 0, 1) * spots.length))];
+  return { x: s.x, z, aimed };
 }
 
 // 噴石を1個追加（同時数が上限なら null）。warn は開発用の秒数上書き
@@ -35,7 +52,7 @@ function rockPos(r) {
 
 
 // ---- 公平性：「避けようがない」噴石を出さない ----
-// 着弾地点の危険帯：その噴石が着弾する時刻に、プレイヤー（いまの速さで直進すると仮定）が円に入ってしまう x の範囲。届かなければ null
+// 着地地点の危険帯：その噴石が着弾する時刻に、プレイヤー（いまの速さで直進すると仮定）が円に入ってしまう x の範囲。届かなければ null
 function rockZone(P, size, x, z, rem) {
   const C = CFG.rock.sizes[size], F = CFG.rock.fair, v = Math.max(P.speed, 1), R = C.radius + CFG.hit.dinoR + F.margin;
   const dz = Math.abs(P.z - v * rem - z);
@@ -43,32 +60,33 @@ function rockZone(P, size, x, z, rem) {
   const dx = Math.sqrt(R * R - dz * dz);
   return { lo: x - dx, hi: x + dx, rem };
 }
-// この噴石 cand = { size, x, z, rem } を足しても、プレイヤーが着弾までに安全な x へ走って逃げ切れるか。
-// 反応時間 react のあと最高横速度で走る（助走ぶん accelLoss を引く）。跳ばないと越えられない障害物が目前なら、空中で動きにくいぶん jumpPenalty を引く。
-// 噴石どうしが重なって逃げ道が足りなくなる配置、逃げる時間が足りない配置を弾く（資料 §16「必ず回避可能なルートを作る」）
+// この噴石 cand = { size, x, z, rem } を足しても、プレイヤーが着弾までに安全なレーンへ移って逃げ切れるか。
+// 反応時間 react のあと、隣のレーンへは shiftSec（＋余裕）ずつかかる。着弾までに間に合うレーンで、障害物（岩・倒木・アーチ・溜まりなど）に塞がれていないものが 1 つでもあればよい。
+// 噴石どうしが重なって安全なレーンが無くなる配置、移る時間が足りない配置を弾く（資料 §16「必ず回避可能なルートを作る」）
 function rockEscapable(S, P, cand, OB) {
-  const F = CFG.rock.fair, M = CFG.move, zones = [];
+  const F = CFG.rock.fair, L = CFG.lane, zones = [];
   for (const r of S.rocks) { const z = rockZone(P, r.size, r.x, r.z, r.warn - r.t); if (z) zones.push(z); }
   const zc = rockZone(P, cand.size, cand.x, cand.z, cand.rem); if (zc) zones.push(zc);
-  const inZ = (x, z) => x > z.lo && x < z.hi, here = zones.filter(z => inZ(P.x, z));
+  const inZ = (x, z) => x > z.lo && x < z.hi, here = zones.filter(z => inZ(P.x, z) || inZ(laneX(P.lane), z));
   if (!here.length) return true;
-  let best = null;
-  for (let x = -M.maxX; x <= M.maxX + 1e-9; x += 0.25) {
-    if (zones.some(z => inZ(x, z))) continue;
-    if (best === null || Math.abs(x - P.x) < Math.abs(best - P.x)) best = x;
-  }
-  if (best === null) return false;
-  let avail = M.maxSpeed * (Math.min(...here.map(z => z.rem)) - F.react) - F.accelLoss;
-  if (OB && OB.list) {
+  const rem = Math.min(...here.map(z => z.rem)), rt = P.laneMove ? Math.max(0, L.shiftSec - P.laneT) : 0;
+  const blocked = i => {
+    if (!OB || !OB.list) return false;
     const O = CFG.obstacle, v = Math.max(P.speed, 1);
     for (const ob of OB.list) {
-      if (ob.type === 'pool') continue;
-      const tz = (P.z - (ob.z + (ob.type === 'crater' ? ob.r : ob.hd) + O.depthPad)) / v;
-      if (tz > -0.1 && tz < cand.rem + 0.3 && Math.abs(P.x - ob.x) < ob.hw + O.dinoR + 0.6) { avail -= F.jumpPenalty; break; }
+      const tz = (P.z - (ob.z + (ob.type === 'crater' || ob.type === 'pool' ? ob.r : ob.hd) + O.depthPad)) / v;
+      if (tz > -0.1 && tz < rem + 0.3 && Math.abs(laneX(i) - ob.x) < ob.hw + O.dinoR + 0.3) return true;
     }
+    return false;
+  };
+  for (let i = 0; i < L.count; i++) {
+    if (zones.some(z => inZ(laneX(i), z)) || blocked(i)) continue;
+    const n = Math.abs(i - P.lane);
+    if (rt + n * (L.shiftSec + F.moveExtra) + F.react <= rem) return true;
   }
-  return Math.abs(best - P.x) <= avail;
+  return false;
 }
+
 
 // 1 フレーム進める。erupting のときだけ新しい噴石を出す。着弾した噴石は取り除き、直撃なら恐竜を吹き飛ばす
 function stepRocks(S, P, dt, erupting, rng, OB) {

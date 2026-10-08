@@ -1,6 +1,6 @@
 // ===== マグマの見た目：溶岩の壁・波頭・火の粉・蒸気・照り返し・熱ゆらぎ・HUD（three.js / DOM） =====
 // 状態（先端の位置）は 27-magma-logic.js の M が持つ。先端は z = -M.front で、そこから後方（+z）へ溶岩面が広がる
-const MAG = { t: 0, hudGap: -1, hudN: -1, overlayOn: false };
+const MAG = { t: 0, hs: 1, hudGap: -1, hudN: -1, overlayOn: false };
 
 // 溶岩のテクスチャ：橙の地に黒い冷えた殻のまだらと明るいひび。端でつながるように折り返して描く
 function makeLavaTexture() {
@@ -24,13 +24,13 @@ function buildMagma() {
   for (let j = 0; j < R; j++) for (let i = 0; i <= N; i++) { const k = (j * (N + 1) + i) * 3; pos[k] = (i / N - 0.5) * C.width; pos[k + 1] = rows[j][1]; pos[k + 2] = rows[j][0]; }
   for (let j = 0; j < R - 1; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i, b = a + 1, c = a + N + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
-  MAG.uni = { time: { value: 0 }, map: { value: makeLavaTexture() } };
+  MAG.uni = { time: { value: 0 }, hs: { value: 1 }, map: { value: makeLavaTexture() } };
   const mat = new THREE.ShaderMaterial({
     uniforms: MAG.uni, side: THREE.DoubleSide,
-    vertexShader: 'uniform float time;varying vec2 vP;' +
+    vertexShader: 'uniform float time,hs;varying vec2 vP;' +
       'void main(){vec3 p=position;float lz=p.z;float w=smoothstep(0.,7.,lz);float crest=exp(-pow(lz-1.8,2.)/3.5);' +
       'p.y+=(sin(p.x*0.33+time*1.7+lz*0.45)*0.22+sin(p.x*0.85-time*2.3)*0.1)*w+crest*sin(p.x*0.5+time*2.6)*0.55;' +
-      'p.z+=(0.5+0.5*sin(p.x*0.7+time*1.3))*0.9*(1.-smoothstep(0.,3.,lz));p.y=max(p.y,0.1);' +
+      'p.z+=(0.5+0.5*sin(p.x*0.7+time*1.3))*0.9*(1.-smoothstep(0.,3.,lz));p.y=max(p.y,0.1);p.y=0.1+(p.y-0.1)*hs;' +
       'vP=vec2(position.x,position.z);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);}',
     fragmentShader: 'uniform sampler2D map;uniform float time;varying vec2 vP;' +
       'void main(){vec2 a=vec2(vP.x*0.05+time*0.015,vP.y*0.05-time*0.05),b=vec2(vP.x*0.11-time*0.02,vP.y*0.11-time*0.09);' +
@@ -54,7 +54,7 @@ function buildMagma() {
 
 // 再スタート用：見た目の状態を初期化（オブジェクトは作り直さない）
 function resetMagmaView() {
-  MAG.t = 0; MAG.hudGap = -1; MAG.hudN = -1; MAG.overlayOn = false; MAG.calm = false;
+  MAG.t = 0; MAG.hs = 1; MAG.hudGap = -1; MAG.hudN = -1; MAG.overlayOn = false; MAG.calm = false;
   [MAG.sparks, MAG.steam].forEach(S => { S.age.fill(1e9); S.alpha.fill(0); S.cursor = 0; S.acc = 0; pflush(S); });
   MAG.$over.classList.remove('on'); MAG.$glow.style.opacity = 0; MAG.$heat.style.opacity = 0; MAG.$view.style.transform = '';
   MAG.mesh.position.z = 1e5; MAG.light.intensity = 0;
@@ -86,6 +86,8 @@ function updateMagma(P, M, dt) {
   const C = CFG.magma, gap = magmaGap(M, P), dead = M.phase === 'dead';
   MAG.t += dt; MAG.uni.time.value = MAG.t;
   const zf = -M.front;
+  const hsT = magmaViewScale(gap, dead);   // 先端が近いほど溶岩を低くして、恐竜が隠れないようにする（死亡のときだけ元の高さへ戻って恐竜を覆う）
+  MAG.hs = dead ? MAG.hs + (hsT - MAG.hs) * (1 - Math.exp(-C.view.ease * dt)) : hsT; MAG.uni.hs.value = MAG.hs;
   MAG.mesh.position.set(0, 0, zf); MAG.mesh.visible = M.active;   // 噴火して動き出すまでは見せない（タイトル画面やクリアの振り返りで、待機中の溶岩が後ろに見えてしまうのを防ぐ）
   const prox = dead ? 1 : MAG.calm ? 0 : magmaProx(gap, C.heatRange);
 
@@ -93,8 +95,8 @@ function updateMagma(P, M, dt) {
   if ((gap < 160 || dead) && !MAG.calm) {   // クリア後（calm）はマグマが静まる：火の粉も蒸気も出さない
     const F = CFG.fx.magma, k = fxInt();   // 近いほど・演出が強いほど増える（intensity 0 なら従来の量）
     MAG.sparks.acc += (45 + (F.spark - 45) * k) * (1 + (0.6 * prox) * k) * dt; MAG.steam.acc += (18 + (F.steam - 18) * k) * (1 + (0.5 * prox) * k) * dt;
-    while (MAG.sparks.acc >= 1) { MAG.sparks.acc -= 1; magEmit(MAG.sparks, P.x * 0.9 + rnd(-26, 26), rnd(2, C.crestH), zf + rnd(0.5, 3), rnd(-3, 3), rnd(4, 14), rnd(-7, 3), rnd(0.7, 1.6), rnd(1.2, 2.8), 1); }
-    while (MAG.steam.acc >= 1) { MAG.steam.acc -= 1; magEmit(MAG.steam, P.x * 0.9 + rnd(-26, 26), rnd(1, 3), zf + rnd(0, 3), rnd(-1, 1), rnd(2, 5), rnd(-3, 1), rnd(1.6, 2.8), rnd(4, 8), 0.35); }
+    while (MAG.sparks.acc >= 1) { MAG.sparks.acc -= 1; magEmit(MAG.sparks, P.x * 0.9 + rnd(-26, 26), 0.4 + rnd(1.6, C.crestH) * MAG.hs, zf + rnd(0.5, 3), rnd(-3, 3), rnd(4, 14), rnd(-7, 3), rnd(0.7, 1.6), rnd(1.2, 2.8), 1); }
+    while (MAG.steam.acc >= 1) { MAG.steam.acc -= 1; magEmit(MAG.steam, P.x * 0.9 + rnd(-26, 26), rnd(1, 3) * MAG.hs, zf + rnd(0, 3), rnd(-1, 1), rnd(2, 5), rnd(-3, 1), rnd(1.6, 2.8), rnd(4, 8), 0.35 * (0.3 + 0.7 * MAG.hs)); }
   }
   stepMagmaFx(MAG.sparks, dt, true); stepMagmaFx(MAG.steam, dt, false); pflush(MAG.sparks); pflush(MAG.steam);
   MAG.light.position.set(P.x, 3, zf + 4); MAG.light.intensity = C.lightMax * prox * prox * (0.9 + 0.1 * Math.sin(MAG.t * 9));
