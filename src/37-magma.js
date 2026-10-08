@@ -91,7 +91,8 @@ function updateMagma(P, M, dt) {
 
   // 火の粉と蒸気：先端の波頭から、画面に見える範囲（プレイヤーの左右）に出す。遠い間は出さない
   if (gap < 160 || dead) {
-    MAG.sparks.acc += 45 * dt; MAG.steam.acc += 18 * dt;
+    const F = CFG.fx.magma, k = fxInt();   // 近いほど・演出が強いほど増える（intensity 0 なら従来の量）
+    MAG.sparks.acc += (45 + (F.spark - 45) * k) * (1 + (0.6 * prox) * k) * dt; MAG.steam.acc += (18 + (F.steam - 18) * k) * (1 + (0.5 * prox) * k) * dt;
     while (MAG.sparks.acc >= 1) { MAG.sparks.acc -= 1; magEmit(MAG.sparks, P.x * 0.9 + rnd(-26, 26), rnd(2, C.crestH), zf + rnd(0.5, 3), rnd(-3, 3), rnd(4, 14), rnd(-7, 3), rnd(0.7, 1.6), rnd(1.2, 2.8), 1); }
     while (MAG.steam.acc >= 1) { MAG.steam.acc -= 1; magEmit(MAG.steam, P.x * 0.9 + rnd(-26, 26), rnd(1, 3), zf + rnd(0, 3), rnd(-1, 1), rnd(2, 5), rnd(-3, 1), rnd(1.6, 2.8), rnd(4, 8), 0.35); }
   }

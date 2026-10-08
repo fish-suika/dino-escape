@@ -20,7 +20,7 @@ const CFG = {
             mid:   { radius: 3.4, vis: 1.3,  warn: 1.2, fallH: 15, power: 1.0,  shake: 0.2 },
             large: { radius: 6.2, vis: 2.8,  warn: 1.6, fallH: 19, power: 1.8,  shake: 0.55 } },
           fair: { react: 0.3, margin: 0.5, accelLoss: 1.2, jumpPenalty: 2.2, tries: 5, retry: 0.2 },                               // 公平性（避けようがない噴石を出さない）：人間の反応時間 / 円の外に出る余裕 / 加速で失う距離 / 障害物をジャンプ中の逃げにくさ(u) / 場所の選び直し回数 / だめなら待つ秒
-          sparkMax: 600, dustMax: 360, craterMax: 10, craterLife: 4.5, ringMax: 8, shakeDecay: 6 },                          // 火の粉・土煙の粒数 / クレーター跡の数と残る秒 / 衝撃波リング数 / 揺れの収まる速さ
+          sparkMax: 850, dustMax: 640, craterMax: 10, craterLife: 4.5, ringMax: 8, shakeDecay: 6 },                          // 火の粉・土煙の粒数 / クレーター跡の数と残る秒 / 衝撃波リング数 / 揺れの収まる速さ
   hit: { dinoR: 0.9, maxY: 1.5,                                                                                             // 恐竜の当たり半径 / これより高く跳んでいれば爆風の上を越える
          knockBase: 0.75, knockPer: 0.5, kickSide: 9, kickUp: 12, kickFwd: 12, spin: 9,                                       // 吹き飛び：秒（基本＋強さ×）/ 横・上・前方への初速（×強さ）/ 回転（rad/s）
          bounce: 0.42, bounceMin: 2.5, friction: 2.2, knockMul: 0.15,                                                        // バウンドの反発 / 止まる最小の落下速度 / 地面での減速 / 吹き飛び中の前進倍率
@@ -31,7 +31,7 @@ const CFG = {
            width: 560, length: 260, crestH: 4.3,                                                                              // 溶岩の幅（左右の外まで）/ 奥行き / 波頭の高さ（3.8→4.3：先端のチラ見えを 6〜7m 付近から。Phase 6）
            heatRange: 55, glowBase: 0.1, wobble: 3, shakeRange: 26, shakeAmp: 0.16, audibleRange: 140,                        // 熱ゆらぎ・赤みが出始める距離 / 噴火後の下端の照り返し最小値 / 熱ゆらぎ(px) / 揺れが出る距離・大きさ / 音が聞こえ始める距離
            dangerGaps: [110, 75, 50, 28, 14],                                                                                 // HUD ゲージの点灯しきい値（この距離より近いと点が1つずつ点く）
-           sparkMax: 260, steamMax: 140, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
+           sparkMax: 360, steamMax: 200, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
   obstacle: { seed: 1234, startDist: 50, slotStep: 20, minGapZ: 14, logClearZ: 30, aheadDist: 150, behindDist: 12, chunk: 40,   // 乱数の種 / 最初の障害物までの距離(u) / 配置の枠の間隔 / 前後の障害物の最低間隔（枠内のばらつきは slotStep-minGapZ）/ 倒木の前後に他を置かない距離 / 先に出す距離・消す距離 / まとめて作る長さ
               density: { start: 0.45, end: 0.9 },                                                                           // 枠が埋まる確率：難易度の強度 s（0〜1）で 序盤→終盤の値へ（その距離を「ふつうに走ったときの噴火後の秒」に直して使う）
               unlock: { rock: 0, crater: 70, log: 110, pool: 200 },                                                         // 各障害物が出始める走行距離（少しずつ増える）
@@ -61,6 +61,25 @@ const CFG = {
   // クリア（安全地帯）。プレイヤーの速さは 16 + 0.04t（t は開始からの秒）なので、距離 = 16t + 0.02t²。
   // distance=2200 → 約 119.5 秒（被弾なし）。被弾の減速（1 回で約 1.5〜2 秒ぶんの遅れ）を数回受けても 2 分台前半、1〜3 分に収まる
   goal: { distance: 2200 },
-  sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
+  // 演出（Phase 7）。intensity=0〜1 で演出全体の強さを一括で弱められる（0 でシェイク・ヒットストップ・フラッシュ・追加の粒子が無くなる）。ゲームの難易度・物理は一切変えない
+  fx: {
+    intensity: 1,
+    shake: { cap: 0.7, hitAmp: 0.5, bigAmp: 0.7 },                     // 揺れ（位置のみ）の合計上限 / 噴石の直撃時の揺れ / 大型着弾時の揺れ（複数の揺れは二乗和の平方根で合成してから上限）
+    hitstop: { rock: 0.065, big: 0.08, trip: 0.04, max: 0.1 },         // ヒットストップの秒（直撃 / 大型の直撃 / 障害物で転倒 / 上限）。ゲーム時間だけが止まり、描画・演出は続く
+    vignette: { sec: 0.55, alpha: 0.85 },                              // 被弾時の赤い縁（フラッシュ）の秒 / 濃さ
+    duck: { big: 0.5, hit: 0.3, boom: 0.55, hold: 0.12, release: 0.55 },   // 大きな音のときに他の音を一瞬下げる深さ（0〜1）/ 下げたままの秒 / 戻る秒
+    blast: { fireLarge: 7, fireMid: 3, smokeLarge: 16, smokeMid: 5, debrisLarge: 18, debrisMid: 7, debrisSmall: 3 },   // 噴石着弾：火球 / 黒煙の柱 / 飛び散る破片 の粒数
+    tail: { spark: 1.6, smoke: 1.35 },                                 // 落下中の噴石の尾（火の粉・煙）の量の倍率
+    runDust: { perUnit: 0.32, size: 1.3 },                             // 走りの土煙：距離 1u あたりの粒数（速度連動）/ 大きさ
+    landDust: 12,                                                      // ジャンプ着地の砂煙の粒数（強く着地するほど増える）
+    magma: { spark: 70, steam: 26 },                                   // マグマ先端の火の粉・蒸気の毎秒の量（近いほど増える）
+    fear: { range: 11 },                                               // 噴石の危険マーカーがこの距離(u)以内に近づくと恐竜が焦る
+    panic: { range: 34 },                                              // マグマとの距離(u)がこれ以内だと必死な走り（脚が速い・口を開ける）
+    squash: { land: 0.3, crouch: 0.16 },                               // 着地のつぶれの最大 / 離陸前の溜めの深さ
+    beep: { range: 10, gap: 0.14 },                                    // 危険マーカーが近くに出たとき「ピッ」と鳴る距離 / 連続で鳴らさない間隔(秒)
+    edge: { base: 0.08, perS: 0.27 },                                   // 噴火中の画面端の赤い縁：基本の濃さ / 難易度の強度 s ごとの上乗せ
+    hintSec: 7                                                         // 操作ヒントを出しておく秒（その後フェードアウト）
+  },
+  sound: { vol: { fall: 0.8, impact: 1.0, scream: 0.8, step: 0.55, jump: 0.6, land: 0.7, stinger: 0.7, beep: 0.4, hit: 1.0 }, master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };

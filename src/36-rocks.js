@@ -54,6 +54,12 @@ function fxStep(S, dt, spark) {
       if (S.pos[j + 1] < 0.05) { S.pos[j + 1] = 0.05; S.vel[j + 1] *= -0.3; S.vel[j] *= 0.6; S.vel[j + 2] *= 0.6; }
       S.size[i] = S.s0[i] * (1 - 0.6 * f); S.alpha[i] = S.a0[i] * (1 - f) * (1 - f);
       S.col[j] = 1; S.col[j + 1] = 0.8 - 0.55 * f; S.col[j + 2] = 0.3 - 0.25 * f;
+    } else if (S.seed[i] > 1.5) {   // 破片（kind 2）：重力で落ちて跳ね、赤熱から黒く冷める
+      S.vel[j + 1] -= 24 * dt;
+      S.pos[j] += S.vel[j] * dt; S.pos[j + 1] += S.vel[j + 1] * dt; S.pos[j + 2] += S.vel[j + 2] * dt;
+      if (S.pos[j + 1] < 0.1) { S.pos[j + 1] = 0.1; S.vel[j + 1] *= -0.35; S.vel[j] *= 0.6; S.vel[j + 2] *= 0.6; }
+      S.size[i] = S.s0[i]; S.alpha[i] = S.a0[i] * (1 - f * f * f);
+      S.col[j] = 0.6 - 0.42 * f; S.col[j + 1] = 0.26 - 0.15 * f; S.col[j + 2] = 0.1 - 0.02 * f;
     } else {
       S.vel[j] *= drag; S.vel[j + 1] = S.vel[j + 1] * drag + 1.5 * dt; S.vel[j + 2] *= drag;
       S.pos[j] += S.vel[j] * dt; S.pos[j + 1] += S.vel[j + 1] * dt; S.pos[j + 2] += S.vel[j + 2] * dt;
@@ -72,6 +78,7 @@ function rockSlotFor(r) {
   sl.mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); sl.spin = [rnd(-4, 4), rnd(-4, 4), rnd(-3, 3)];
   sl.body.visible = true; sl.shadow.visible = sl.disc.visible = sl.ring.visible = true;
   sndRockFall(r.warn - r.t, r.size);
+  fxMarkerAppear(r);
   return sl;
 }
 
@@ -97,9 +104,10 @@ function syncRocks(S, dt) {
     const sMax = big ? rad * 1.15 : r.vis * 2.2, sg = 0.2 + 0.8 * u;
     sl.shadow.position.set(r.x, 0.05, r.z); sl.shadow.scale.set(sMax * sg, sMax * sg, 1); sl.shadow.material.opacity = (big ? 0.2 + 0.4 * u : 0.1 + 0.25 * u);
     // 尾を引く火の粉と煙
-    sl.acc += dt * (70 + 30 * r.vis); sl.acc2 += dt * 28;
+    const TL = CFG.fx.tail, fi = fxInt(), tl = 1 + (TL.spark - 1) * fi, ts = 1 + (TL.smoke - 1) * fi;
+    sl.acc += dt * (70 + 30 * r.vis) * tl; sl.acc2 += dt * 28 * ts;
     const px = p.x, py = p.y + r.vis * 0.9, pz = p.z, spread = 2 + r.vis * 2;
-    while (sl.acc >= 1) { sl.acc -= 1; fxEmit(ROCKS.sparks, px + rnd(-1, 1) * r.vis * 0.6, py + rnd(-1, 1) * r.vis * 0.6, pz + rnd(-1, 1) * r.vis * 0.6, rnd(-spread, spread) + r.ox * 0.25, rnd(2, 8), rnd(-spread, spread) + r.oz * 0.25, rnd(0.35, 0.7), rnd(0.9, 1.7) * (0.6 + r.vis * 0.5), 1, 0); }
+    while (sl.acc >= 1) { sl.acc -= 1; fxEmit(ROCKS.sparks, px + rnd(-1, 1) * r.vis * 0.6, py + rnd(-1, 1) * r.vis * 0.6, pz + rnd(-1, 1) * r.vis * 0.6, rnd(-spread, spread) + r.ox * 0.25, rnd(2, 8), rnd(-spread, spread) + r.oz * 0.25, rnd(0.35, 0.7) * (1 + 0.35 * fi * u), rnd(0.9, 1.7) * (0.6 + r.vis * 0.5), 1, 0); }
     while (sl.acc2 >= 1) { sl.acc2 -= 1; fxEmit(ROCKS.dust, px, py, pz, rnd(-1.5, 1.5), rnd(0, 3), rnd(-1.5, 1.5), rnd(0.8, 1.3), (2 + r.vis * 2.2), 0.55, 1); }
   }
   for (const sl of ROCKS.slots) if (sl.id && sl.seen !== ROCKS.frame) rockRelease(sl);
@@ -117,12 +125,32 @@ function rockImpact(r, hit) {
     const a = rnd(0, 6.283), sp = rnd(4, 10) * (0.7 + v * 0.2);
     fxEmit(ROCKS.dust, r.x + Math.cos(a) * v, 0.4, r.z + Math.sin(a) * v, Math.cos(a) * sp, rnd(0.5, 3.5), Math.sin(a) * sp, rnd(1.1, 2), (2.5 + v * 2.2) * rnd(0.8, 1.3), 0.7, i % 3 === 0 ? 1 : 0);
   }
+  rockBlast(r);
   const rg = ROCKS.rings[ROCKS.ringI]; ROCKS.ringI = (ROCKS.ringI + 1) % ROCKS.rings.length;
   rg.t = 0; rg.life = 0.35 + v * 0.1; rg.R = C.radius * 1.5; rg.mesh.position.set(r.x, 0.1, r.z); rg.mesh.visible = true;
   const cr = ROCKS.craters[ROCKS.craterI]; ROCKS.craterI = (ROCKS.craterI + 1) % ROCKS.craters.length;
   cr.t = 0; cr.R = v * 1.25; cr.dark.position.set(r.x, 0.045, r.z); cr.glow.position.set(r.x, 0.055, r.z); cr.dark.visible = cr.glow.visible = true;
-  ROCKS.shake = Math.max(ROCKS.shake, C.shake);
+  ROCKS.shake = Math.max(ROCKS.shake, r.size === 'large' ? Math.max(C.shake, CFG.fx.shake.bigAmp) : C.shake);
   sndRockImpact(r.size);
+  if (r.size === 'large') fxDuck(FXS, CFG.fx.duck.big, 0.25); else if (r.size === 'mid') fxDuck(FXS, CFG.fx.duck.big * 0.4, 0.1);
+}
+
+// 大型・中型の着弾を派手に：火球（大きく明るい光の粒）＋黒煙の柱（高く昇る）＋飛び散る赤熱の破片。粒数は CFG.fx.blast、全体は intensity で増減
+function rockBlast(r) {
+  const B = CFG.fx.blast, k = fxInt(), large = r.size === 'large', mid = r.size === 'mid', v = r.vis;
+  const nFire = Math.round((large ? B.fireLarge : mid ? B.fireMid : 0) * k), nSmoke = Math.round((large ? B.smokeLarge : mid ? B.smokeMid : 0) * k), nDeb = Math.round((large ? B.debrisLarge : mid ? B.debrisMid : B.debrisSmall) * k);
+  for (let i = 0; i < nFire; i++) {   // 火球：地面付近で大きく膨らんですぐ消える
+    const a = rnd(0, 6.283), sp = rnd(1, 5) * (large ? 1.4 : 1);
+    fxEmit(ROCKS.sparks, r.x + Math.cos(a) * v * 0.5, rnd(0.6, 2.2), r.z + Math.sin(a) * v * 0.5, Math.cos(a) * sp, rnd(2, 7), Math.sin(a) * sp, rnd(0.3, 0.55), large ? rnd(6, 10) : rnd(3.5, 5.5), 1, 0);
+  }
+  for (let i = 0; i < nSmoke; i++) {   // 黒煙の柱：中心から上へ
+    const a = rnd(0, 6.283), rr = rnd(0, v * 0.6);
+    fxEmit(ROCKS.dust, r.x + Math.cos(a) * rr, rnd(0.3, 1.5), r.z + Math.sin(a) * rr, rnd(-1.5, 1.5), rnd(large ? 9 : 5, large ? 17 : 10), rnd(-1.5, 1.5), rnd(1.8, 3.0), rnd(large ? 4 : 2.8, large ? 6.5 : 4.2), 0.75, 1);
+  }
+  for (let i = 0; i < nDeb; i++) {   // 破片：放物線で飛び散る
+    const a = rnd(0, 6.283), sp = rnd(5, 17) * (large ? 1.2 : 0.8);
+    fxEmit(ROCKS.dust, r.x, 0.5, r.z, Math.cos(a) * sp, rnd(7, 17), Math.sin(a) * sp, rnd(0.9, 1.6), rnd(0.55, 1.0) * (large ? 1.2 : 1), 1, 2);
+  }
 }
 
 function updateRocksFx(dt) {

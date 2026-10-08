@@ -42,7 +42,7 @@ const CFG = {
             mid:   { radius: 3.4, vis: 1.3,  warn: 1.2, fallH: 15, power: 1.0,  shake: 0.2 },
             large: { radius: 6.2, vis: 2.8,  warn: 1.6, fallH: 19, power: 1.8,  shake: 0.55 } },
           fair: { react: 0.3, margin: 0.5, accelLoss: 1.2, jumpPenalty: 2.2, tries: 5, retry: 0.2 },                               // 公平性（避けようがない噴石を出さない）：人間の反応時間 / 円の外に出る余裕 / 加速で失う距離 / 障害物をジャンプ中の逃げにくさ(u) / 場所の選び直し回数 / だめなら待つ秒
-          sparkMax: 600, dustMax: 360, craterMax: 10, craterLife: 4.5, ringMax: 8, shakeDecay: 6 },                          // 火の粉・土煙の粒数 / クレーター跡の数と残る秒 / 衝撃波リング数 / 揺れの収まる速さ
+          sparkMax: 850, dustMax: 640, craterMax: 10, craterLife: 4.5, ringMax: 8, shakeDecay: 6 },                          // 火の粉・土煙の粒数 / クレーター跡の数と残る秒 / 衝撃波リング数 / 揺れの収まる速さ
   hit: { dinoR: 0.9, maxY: 1.5,                                                                                             // 恐竜の当たり半径 / これより高く跳んでいれば爆風の上を越える
          knockBase: 0.75, knockPer: 0.5, kickSide: 9, kickUp: 12, kickFwd: 12, spin: 9,                                       // 吹き飛び：秒（基本＋強さ×）/ 横・上・前方への初速（×強さ）/ 回転（rad/s）
          bounce: 0.42, bounceMin: 2.5, friction: 2.2, knockMul: 0.15,                                                        // バウンドの反発 / 止まる最小の落下速度 / 地面での減速 / 吹き飛び中の前進倍率
@@ -53,7 +53,7 @@ const CFG = {
            width: 560, length: 260, crestH: 4.3,                                                                              // 溶岩の幅（左右の外まで）/ 奥行き / 波頭の高さ（3.8→4.3：先端のチラ見えを 6〜7m 付近から。Phase 6）
            heatRange: 55, glowBase: 0.1, wobble: 3, shakeRange: 26, shakeAmp: 0.16, audibleRange: 140,                        // 熱ゆらぎ・赤みが出始める距離 / 噴火後の下端の照り返し最小値 / 熱ゆらぎ(px) / 揺れが出る距離・大きさ / 音が聞こえ始める距離
            dangerGaps: [110, 75, 50, 28, 14],                                                                                 // HUD ゲージの点灯しきい値（この距離より近いと点が1つずつ点く）
-           sparkMax: 260, steamMax: 140, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
+           sparkMax: 360, steamMax: 200, lightMax: 2.4 },                                                                    // 火の粉・蒸気の粒数 / 照り返し光の強さ
   obstacle: { seed: 1234, startDist: 50, slotStep: 20, minGapZ: 14, logClearZ: 30, aheadDist: 150, behindDist: 12, chunk: 40,   // 乱数の種 / 最初の障害物までの距離(u) / 配置の枠の間隔 / 前後の障害物の最低間隔（枠内のばらつきは slotStep-minGapZ）/ 倒木の前後に他を置かない距離 / 先に出す距離・消す距離 / まとめて作る長さ
               density: { start: 0.45, end: 0.9 },                                                                           // 枠が埋まる確率：難易度の強度 s（0〜1）で 序盤→終盤の値へ（その距離を「ふつうに走ったときの噴火後の秒」に直して使う）
               unlock: { rock: 0, crater: 70, log: 110, pool: 200 },                                                         // 各障害物が出始める走行距離（少しずつ増える）
@@ -83,7 +83,26 @@ const CFG = {
   // クリア（安全地帯）。プレイヤーの速さは 16 + 0.04t（t は開始からの秒）なので、距離 = 16t + 0.02t²。
   // distance=2200 → 約 119.5 秒（被弾なし）。被弾の減速（1 回で約 1.5〜2 秒ぶんの遅れ）を数回受けても 2 分台前半、1〜3 分に収まる
   goal: { distance: 2200 },
-  sound: { master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
+  // 演出（Phase 7）。intensity=0〜1 で演出全体の強さを一括で弱められる（0 でシェイク・ヒットストップ・フラッシュ・追加の粒子が無くなる）。ゲームの難易度・物理は一切変えない
+  fx: {
+    intensity: 1,
+    shake: { cap: 0.7, hitAmp: 0.5, bigAmp: 0.7 },                     // 揺れ（位置のみ）の合計上限 / 噴石の直撃時の揺れ / 大型着弾時の揺れ（複数の揺れは二乗和の平方根で合成してから上限）
+    hitstop: { rock: 0.065, big: 0.08, trip: 0.04, max: 0.1 },         // ヒットストップの秒（直撃 / 大型の直撃 / 障害物で転倒 / 上限）。ゲーム時間だけが止まり、描画・演出は続く
+    vignette: { sec: 0.55, alpha: 0.85 },                              // 被弾時の赤い縁（フラッシュ）の秒 / 濃さ
+    duck: { big: 0.5, hit: 0.3, boom: 0.55, hold: 0.12, release: 0.55 },   // 大きな音のときに他の音を一瞬下げる深さ（0〜1）/ 下げたままの秒 / 戻る秒
+    blast: { fireLarge: 7, fireMid: 3, smokeLarge: 16, smokeMid: 5, debrisLarge: 18, debrisMid: 7, debrisSmall: 3 },   // 噴石着弾：火球 / 黒煙の柱 / 飛び散る破片 の粒数
+    tail: { spark: 1.6, smoke: 1.35 },                                 // 落下中の噴石の尾（火の粉・煙）の量の倍率
+    runDust: { perUnit: 0.32, size: 1.3 },                             // 走りの土煙：距離 1u あたりの粒数（速度連動）/ 大きさ
+    landDust: 12,                                                      // ジャンプ着地の砂煙の粒数（強く着地するほど増える）
+    magma: { spark: 70, steam: 26 },                                   // マグマ先端の火の粉・蒸気の毎秒の量（近いほど増える）
+    fear: { range: 11 },                                               // 噴石の危険マーカーがこの距離(u)以内に近づくと恐竜が焦る
+    panic: { range: 34 },                                              // マグマとの距離(u)がこれ以内だと必死な走り（脚が速い・口を開ける）
+    squash: { land: 0.3, crouch: 0.16 },                               // 着地のつぶれの最大 / 離陸前の溜めの深さ
+    beep: { range: 10, gap: 0.14 },                                    // 危険マーカーが近くに出たとき「ピッ」と鳴る距離 / 連続で鳴らさない間隔(秒)
+    edge: { base: 0.08, perS: 0.27 },                                   // 噴火中の画面端の赤い縁：基本の濃さ / 難易度の強度 s ごとの上乗せ
+    hintSec: 7                                                         // 操作ヒントを出しておく秒（その後フェードアウト）
+  },
+  sound: { vol: { fall: 0.8, impact: 1.0, scream: 0.8, step: 0.55, jump: 0.6, land: 0.7, stinger: 0.7, beep: 0.4, hit: 1.0 }, master: 0.5, rumbleIdle: 0.35, rumbleErupt: 0.85, magmaRumble: 1.0, magmaSizzle: 0.3 },                           // 全体音量 / 待機中・噴火中のゴゴゴ音量 / マグマの低音・ジュワジュワの最大音量
   dt: { max: 0.05 }                                                   // 1 フレームの最大秒（タブ復帰時の飛び防止）
 };
 // ===== 純ロジック（three.js 非依存。verify.html でテスト） =====
@@ -542,6 +561,80 @@ function reachedGoal(G) { return G.P.dist >= CFG.goal.distance; }
 // マグマの「ひるみ」：先端が近いほど少しだけ遅くなる（rubber band）。被弾でじわじわ追いつかれても、近づいたぶん少し猶予が生まれて「ギリギリ逃げ切る」展開になる。
 // gap >= range なら 1.0（影響なし）、gap = 0 で min。被弾なしで走っている間は gap が range より大きいので効かない
 function magmaRubber(gap) { const C = CFG.magma; return obLerp(C.rubberMin, 1, clamp01(gap / C.rubberRange)); }
+// ===== 演出の純ロジック（three.js 非依存。verify.html でテスト）=====
+// 画面揺れの合成と上限・ヒットストップ・音のダッキング・足音のタイミング・危険マーカーの近さ・つぶれ。
+// ゲーム時間（物理）には触らない：ヒットストップは「ゲーム時間を進めない」だけで、演出側の時計は続く。
+const FX_PI = Math.PI;
+function fxClamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+function fxInt() { return fxClamp01(CFG.fx.intensity); }
+
+function fxNew() { return { hitstop: 0, duckDepth: 0, duckHold: 0, cool: {} }; }
+function fxReset(F) { F.hitstop = 0; F.duckDepth = 0; F.duckHold = 0; F.cool = {}; }
+
+// 画面揺れ：複数の揺れの大きさを二乗和の平方根で合成し、上限 cap で頭打ちにする（足し算だと重なったとき操作不能になる）
+function fxShakeCombine(amps, cap) {
+  let s = 0; for (const a of amps) if (a > 0) s += a * a;
+  return Math.min(cap, Math.sqrt(s));
+}
+// 実際にカメラへ足す揺れの大きさ（演出の強さを掛ける）
+function fxShakeTotal(amps) { return fxShakeCombine(amps, CFG.fx.shake.cap) * fxInt(); }
+
+// ヒットストップ：sec 秒ゲーム時間を止める。重なったら長いほうを採用。上限あり
+function fxHitstop(F, sec) { const H = CFG.fx.hitstop; F.hitstop = Math.max(F.hitstop, Math.min(H.max, sec * fxInt())); }
+// 実時間 dt を渡す。止めるべきフレームなら true（その間ゲームは進めない）。止まる合計は hitstop 秒
+function fxHitstopStep(F, dt) {
+  if (F.hitstop <= 0) return false;
+  F.hitstop = Math.max(0, F.hitstop - dt); return true;
+}
+
+// ダッキング：大きな音のとき他の音を下げる。depth=下げる深さ（0〜0.9）, hold=そのままの秒。戻りは release 秒かけて線形
+function fxDuck(F, depth, hold) {
+  F.duckDepth = Math.min(0.9, Math.max(F.duckDepth, depth * fxInt()));
+  F.duckHold = Math.max(F.duckHold, hold == null ? CFG.fx.duck.hold : hold);
+}
+// 毎フレーム：音量の倍率（1=そのまま、下がると 1-depth）を返す
+function fxDuckStep(F, dt) {
+  if (F.duckHold > 0) F.duckHold = Math.max(0, F.duckHold - dt);
+  else if (F.duckDepth > 0) F.duckDepth = Math.max(0, F.duckDepth - dt / CFG.fx.duck.release);
+  return 1 - F.duckDepth;
+}
+
+// 足音：脚の位相 phase（ラジアン）が π を跨ぐたびに 1 歩。1 フレームに出す回数は 2 まで
+function fxStepCount(prevPhase, phase) {
+  if (!(phase > prevPhase)) return 0;
+  return Math.min(2, Math.floor(phase / FX_PI) - Math.floor(prevPhase / FX_PI));
+}
+
+// 連続で鳴らさないための間隔ゲート（key ごと）。鳴らしてよければ true
+function fxCooldown(F, key, now, gap) {
+  const last = F.cool[key];
+  if (last !== undefined && now - last < gap) return false;
+  F.cool[key] = now; return true;
+}
+
+// 危険マーカーの近さ：まだ着弾していない噴石のうち、円の縁から恐竜までの水平距離が最小のもの。nearness は range で 1→0
+function fxNearRock(rocks, P, range) {
+  let best = Infinity;
+  for (const r of rocks) {
+    if (r.t >= r.warn) continue;
+    const d = Math.max(0, Math.hypot(r.x - P.x, r.z - P.z) - r.radius);
+    if (d < best) best = d;
+  }
+  return { d: best, nearness: best === Infinity ? 0 : fxClamp01(1 - best / range) };
+}
+
+// 縦のつぶれ（スクワッシュ）の倍率。sinceTakeoff=離陸からの秒、sinceLand=着地からの秒（古い値は大きな数を渡す）。strength=着地の強さ 0〜1
+// 離陸：一瞬しゃがむ（溜め）→ 伸びる。着地：つぶれて戻る
+function fxSquash(sinceTakeoff, sinceLand, strength) {
+  const Q = CFG.fx.squash, k = fxInt();
+  let y = 1;
+  if (sinceLand >= 0 && sinceLand < 0.2) y -= Q.land * fxClamp01(strength) * Math.sin(FX_PI * sinceLand / 0.2) * (1 - sinceLand / 0.2 * 0.3) * k;
+  if (sinceTakeoff >= 0 && sinceTakeoff < 0.26) {
+    if (sinceTakeoff < 0.07) y -= Q.crouch * Math.sin(FX_PI * sinceTakeoff / 0.07) * k;
+    else y += 0.1 * Math.sin(FX_PI * (sinceTakeoff - 0.07) / 0.19) * k;
+  }
+  return y;
+}
 // ===== 自動プレイするボット（バランス確認用。純ロジックの上で動く。本体 HTML には入らない）=====
 // botRun({ seed, rngSeed, err, reaction, maxSec }) → 1 回ぶんの結果。
 //   err      = 各危険（噴石 1 個・障害物 1 個）を「見逃す」確率。0 = 完璧、1 = 何も避けない（立ち止まったまま、ジャンプもしない）
@@ -1194,6 +1287,62 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s, 166452
   check('ボット：何も避けない(立ち止まる)ボットは 90 秒以内に全員死ぬ', none.clear === 0 && Math.max(...none.deadTs) < 90, botLine(none));
   check('ボット：10% 見逃すボットは半分前後(30〜90%)クリア、20% 見逃すとさらに減る（ギリギリ）', sloppy.clearRate >= 0.3 && sloppy.clearRate <= 0.9 && bad.clearRate > 0 && bad.clearRate < sloppy.clearRate && bad.clearRate < 0.7, botLine(sloppy) + ' / ' + botLine(bad));
   check('ボット：失敗するときの死亡時刻は後半(平均 70 秒以降)に偏る', isNaN(bad.deadT) || bad.deadT >= 70, botLine(bad));
+})();
+// ===== Phase 7 演出（純ロジック）の検証 =====
+(() => {
+  const F0 = CFG.fx.intensity;
+  const withInt = (v, fn) => { const o = CFG.fx.intensity; CFG.fx.intensity = v; try { return fn(); } finally { CFG.fx.intensity = o; } };
+  // 画面揺れの合成と上限
+  check('揺れ：単独ならそのまま、何も無ければ 0', fxShakeCombine([0.3], 9) === 0.3 && fxShakeCombine([], 9) === 0 && fxShakeCombine([0, 0], 9) === 0);
+  check('揺れ：複数は二乗和の平方根（足し算より小さい・最大要素より大きい）', (() => { const s = fxShakeCombine([0.3, 0.4], 9); return Math.abs(s - 0.5) < 1e-9 && s < 0.7 && s > 0.4; })());
+  check('揺れ：合計は cap を超えない（全要因が最大でも操作不能にならない）', fxShakeTotal([0.32, 0.7, 0.07, 0.16, 5, 5]) <= CFG.fx.shake.cap + 1e-9);
+  check('揺れ：負・NaN 相当の入力でも 0 以上', fxShakeCombine([-1, 0.2], 9) === 0.2);
+  check('演出の強さ 0 で揺れが 0、0.5 で半分', withInt(0, () => fxShakeTotal([0.5])) === 0 && Math.abs(withInt(0.5, () => fxShakeTotal([0.4])) - 0.2) < 1e-9);
+  check('既存の揺れ（噴火・大型着弾・最終・マグマ）の最大の組み合わせでも cap 以内で、cap は小さな視点移動(<1u)', CFG.fx.shake.cap < 1 && fxShakeTotal([CFG.volcano.shakeAmp, CFG.fx.shake.bigAmp, CFG.difficulty.shake.amp, CFG.magma.shakeAmp]) <= CFG.fx.shake.cap);
+  // ヒットストップ
+  check('ヒットストップ：0.05〜0.1 秒のゲーム時間停止（直撃）', (() => { const F = fxNew(); fxHitstop(F, CFG.fx.hitstop.rock); let n = 0; while (fxHitstopStep(F, 1 / 60)) n++; return n >= 3 && n <= 6 && F.hitstop === 0; })());
+  check('ヒットストップ：上限 max を超えない・重なったら長いほう', (() => { const F = fxNew(); fxHitstop(F, 5); const a = F.hitstop; fxHitstop(F, 0.01); return a === CFG.fx.hitstop.max && F.hitstop === a; })());
+  check('ヒットストップ：設定値は 0.05〜0.1 秒の範囲', CFG.fx.hitstop.rock >= 0.05 && CFG.fx.hitstop.big <= 0.1 && CFG.fx.hitstop.max <= 0.1);
+  check('ヒットストップ：演出の強さ 0 なら止まらない', withInt(0, () => { const F = fxNew(); fxHitstop(F, 0.08); return !fxHitstopStep(F, 1 / 60); }));
+  check('ヒットストップは演出側の状態だけ：停止中に stepGame を呼ばなければ P.time は進まず、再開後は同じ結果（ボット評価に影響しない）', (() => {
+    const A = newGame(), B = newGame(); A.OB.seed = B.OB.seed = 3; const NO = { left: false, right: false, jump: false };
+    for (let i = 0; i < 120; i++) { stepGame(A, NO, 1 / 60); stepGame(B, NO, 1 / 60); }
+    const F = fxNew(); fxHitstop(F, 0.08); let skipped = 0; while (fxHitstopStep(F, 1 / 60)) skipped++;   // その間 B は update しない
+    return skipped > 0 && A.P.time === B.P.time && A.P.dist === B.P.dist;
+  })());
+  // ダッキング
+  check('ダッキング：下げた直後は音量が 1 未満で、hold のあと release 秒で 1 に戻る', (() => {
+    const F = fxNew(); fxDuck(F, 0.5, 0.1); const g0 = fxDuckStep(F, 1 / 60); let t = 0, g = g0;
+    while (g < 1 && t < 5) { g = fxDuckStep(F, 1 / 60); t += 1 / 60; }
+    return g0 < 1 && g0 >= 0.1 && g === 1 && t > 0.3 && t < CFG.fx.duck.release + CFG.fx.duck.hold + 0.2;
+  })());
+  check('ダッキング：深さは 0.9 まで・重なったら深いほう・何もなければ 1', (() => { const F = fxNew(); const n = fxDuckStep(F, 0.1); fxDuck(F, 5); const a = F.duckDepth; fxDuck(F, 0.1); return n === 1 && a === 0.9 && F.duckDepth === 0.9; })());
+  check('ダッキング：演出の強さ 0 なら下がらない', withInt(0, () => { const F = fxNew(); fxDuck(F, 0.8); return fxDuckStep(F, 0.01) === 1; }));
+  // 足音
+  check('足音：位相が π を跨ぐたびに 1 歩（まとめて跨いでも最大 2）', fxStepCount(0.1, 3.0) === 0 && fxStepCount(3.0, 3.3) === 1 && fxStepCount(0, 10) === 2 && fxStepCount(5, 4) === 0);
+  check('足音：速いほど歩数が多い（速度連動）', (() => { const cnt = sp => { let ph = 0, n = 0; for (let i = 0; i < 600; i++) { const p2 = ph + sp * (1 / 60) * CFG.dino.runFreq; n += fxStepCount(ph, p2); ph = p2; } return n; }; return cnt(30) > cnt(16) && cnt(16) >= 20 && cnt(34) <= 70; })());
+  // 連続防止ゲート
+  check('クールダウン：間隔内は鳴らさず、過ぎたら鳴らす（キーごとに独立）', (() => { const F = fxNew(); return fxCooldown(F, 'a', 0, 0.2) && !fxCooldown(F, 'a', 0.1, 0.2) && fxCooldown(F, 'a', 0.25, 0.2) && fxCooldown(F, 'b', 0.1, 0.2); })());
+  // 危険マーカーの近さ
+  check('近さ：噴石が無ければ 0、近いほど 1 に近い、着弾済みは無視', (() => {
+    const P = { x: 0, z: 0 }, R = (x, z, t) => ({ x, z, t, warn: 1, radius: 3 });
+    const none = fxNearRock([], P, 11), far = fxNearRock([R(0, -30, 0)], P, 11), near = fxNearRock([R(0, -5, 0)], P, 11), on = fxNearRock([R(0, -1, 0)], P, 11), done = fxNearRock([R(0, -1, 1)], P, 11);
+    return none.nearness === 0 && far.nearness === 0 && near.nearness > 0 && on.nearness === 1 && near.nearness < on.nearness && done.nearness === 0;
+  })());
+  check('近さ：複数あるときは最も近いもの', (() => { const r = fxNearRock([{ x: 0, z: -20, t: 0, warn: 1, radius: 1 }, { x: 0, z: -6, t: 0, warn: 1, radius: 1 }], { x: 0, z: 0 }, 11); return Math.abs(r.d - 5) < 1e-9; })());
+  // スクワッシュ
+  check('つぶれ：静止時は 1、着地で縮み(最小は 1-land)、離陸でしゃがんでから伸びる、範囲内に収まる', (() => {
+    let lo = 9, hi = 0; for (let t = 0; t < 0.4; t += 0.005) for (const s of [0, 1]) { const y = Math.min(fxSquash(9, t, s), fxSquash(t, 9, s)); const y2 = Math.max(fxSquash(9, t, s), fxSquash(t, 9, s)); lo = Math.min(lo, y); hi = Math.max(hi, y2); }
+    const crouch = fxSquash(0.035, 9, 0), stretch = fxSquash(0.16, 9, 0);
+    return fxSquash(9, 9, 1) === 1 && lo >= 1 - CFG.fx.squash.land - 1e-9 && lo < 0.85 && hi <= 1.11 && crouch < 1 && stretch > 1 && fxSquash(9, 0.1, 1) < 0.8 && fxSquash(9, 0.1, 0) === 1;
+  })());
+  check('つぶれ：演出の強さ 0 なら常に 1', withInt(0, () => fxSquash(0.03, 0.05, 1) === 1 && fxSquash(0.1, 9, 1) === 1));
+  check('CFG.fx.intensity はテスト中に変更されていない', CFG.fx.intensity === F0 && F0 >= 0 && F0 <= 1);
+  // 難易度・物理が演出の設定に依存しない（intensity を変えても stepGame の結果は同じ）
+  check('演出の強さを変えてもゲームの進行は完全に同じ（難易度・物理を壊さない）', (() => {
+    const run = v => withInt(v, () => { const G = newGame(); G.OB.seed = 9; let s = 1; const rng = () => (s = (s * 16807) % 2147483647) / 2147483647; const NO = { left: false, right: false, jump: false }; for (let i = 0; i < 1800; i++) stepGame(G, NO, 1 / 60, rng); return JSON.stringify([G.P.dist, G.P.hits, G.M.front, G.RS.nextId]); });
+    return run(0) === run(1) && run(0.4) === run(1);
+  })());
 })();
 document.getElementById('sum').textContent = nNg === 0 ? `ALL PASS (${nOk})` : `FAIL ${nNg} / PASS ${nOk}`;
 document.getElementById('sum').style.color = nNg === 0 ? '#6bd07a' : '#ff6b6b';

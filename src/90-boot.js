@@ -7,6 +7,7 @@
   let erupted = false, fx = volcanoState(0);
   const dino = buildDino(); WORLD.scene.add(dino.group);
   const G = newGame(), P = G.P, M = G.M, RS = G.RS, OB = G.OB;
+  fxBuild(G, dino);
   const newSeed = () => (Math.random() * 2147483647) | 0;
   OB.seed = newSeed();   // 障害物の配置の種（毎回変わる。リセット時も新しくする）
   const $dist = document.getElementById('dist'), $danger = document.getElementById('danger'), $clear = document.getElementById('clear'), $clearDist = document.getElementById('clearDist');
@@ -21,7 +22,7 @@
   function onObstacleHit(h) {
     const O = CFG.obstacle, ob = h.ob, trip = h.kind === 'trip', pool = ob.type === 'pool', T = pool ? O.poolTrip : O.trip;
     sndThud(trip ? (pool ? 1 : 0.8) : 0.35, pool);
-    if (trip) { showOops(); ROCKS.shake = Math.max(ROCKS.shake, T.shake); }
+    if (trip) { showOops(); ROCKS.shake = Math.max(ROCKS.shake, T.shake); fxOnHit('trip'); }
     const n = trip ? 16 : 6;
     for (let i = 0; i < n; i++) {
       const a = rnd(0, 6.283), sp = rnd(3, 9);
@@ -48,7 +49,7 @@
     resetRocks(); resetObstaclesView(); resetVolcano(); resetWorld(); resetMagmaView();
     dino.phase = 0; dino.air = 0; dino.group.visible = true;
     [$boom, $scream, $oops].forEach(el => el.classList.remove('on')); $clear.classList.remove('on'); shownDanger = -1; $flash.style.opacity = 0;
-    sndMagmaUpdate(0);
+    sndMagmaUpdate(0); fxResetView();
   }
 
   function update(dt) {
@@ -60,37 +61,26 @@
     if (fx.state === 'erupting') { fx.k *= em; fx.smoke *= em; }
     syncRocks(RS, dt); syncObstacles(OB, dt);
     ev.obstacle.hits.forEach(onObstacleHit);
-    ev.landed.forEach(l => { rockImpact(l.rock, l.hit); if (l.hit) { showScream(); sndScream(); } });
+    ev.landed.forEach(l => { rockImpact(l.rock, l.hit); if (l.hit) { showScream(); sndScream(); fxOnHit('rock', l.rock.size); } });
     if (ev.died) onDeath();
+    const gap = magmaGap(M, P), alive = M.phase === 'playing';
     updateRocksFx(dt);
+    fxFrame(dt, { alive, gap, dif, fx });
     updateDino(dino, P, dt);
     updateWorld(P, dt);
-    if (fx.state === 'erupting' && !erupted) { erupted = true; $boom.classList.add('on'); sndBoom(); }
+    if (fx.state === 'erupting' && !erupted) { erupted = true; $boom.classList.add('on'); sndBoom(); fxDuck(FXS, CFG.fx.duck.boom, 0.3); }
     updateVolcano(P, dt, fx);
     updateMagma(P, M, dt);
-    const gap = magmaGap(M, P), alive = M.phase === 'playing';
-    if (dif.stage !== shownDanger) { shownDanger = dif.stage; $danger.textContent = '危険度：' + dif.label; $danger.className = 'd' + dif.stage; }
+    if (dif.stage !== shownDanger) { shownDanger = dif.stage; fxStage(dif.stage); $danger.textContent = '危険度：' + dif.label; $danger.className = 'd' + dif.stage; }
     if (M.phase === 'clear' && M.clearT > 0.8 && !$clear.classList.contains('on')) { $clearDist.textContent = '逃走距離：' + Math.floor(P.dist) + 'm'; $clear.classList.add('on'); }
     sndUpdate(fx);
     sndMagmaUpdate(alive ? magmaProx(gap, CFG.magma.audibleRange) : M.phase === 'clear' ? 0 : Math.max(0, 0.6 - M.deadT * 0.3));
     $flash.style.opacity = fx.flash;
     const T = VOL.t;   // 揺れの位相（P.time は死亡で止まるので別の時計を使う）
-    if (fx.shake > 0) {   // 控えめな画面揺れ（カメラ位置だけ。向きは変えない）
-      WORLD.camera.position.x += Math.sin(T * 61) * fx.shake;
-      WORLD.camera.position.y += Math.cos(T * 47) * fx.shake * 0.8;
-    }
-    if (ROCKS.shake > 0) {   // 噴石着弾の揺れ（位置のみ。大型は強め・中型は弱め）
-      WORLD.camera.position.x += Math.sin(T * 83) * ROCKS.shake;
-      WORLD.camera.position.y += Math.cos(T * 71) * ROCKS.shake * 0.8;
-    }
-    if (alive && dif.e > CFG.difficulty.shake.from) {   // 最終逃走：画面全体の常時の小刻みな揺れ（位置のみ・控えめ）
-      const fs = finalShake(dif.e);
-      WORLD.camera.position.x += Math.sin(T * 53) * fs; WORLD.camera.position.y += Math.cos(T * 67) * fs * 0.8;
-    }
-    if (alive && M.active) {   // マグマが近い：小刻みな地鳴りの揺れ（控えめ）
-      const k = magmaProx(gap, CFG.magma.shakeRange), s = CFG.magma.shakeAmp * k * k;
-      if (s > 0) { WORLD.camera.position.x += Math.sin(T * 97) * s; WORLD.camera.position.y += Math.cos(T * 89) * s * 0.8; }
-    }
+    // 画面揺れは全要因を fxCamera でまとめて合成（位置のみ・二乗和の平方根で合成し上限あり）：噴火 / 噴石の着弾・被弾 / 最終逃走の常時 / マグマ接近
+    const finalS = alive && dif.e > CFG.difficulty.shake.from ? finalShake(dif.e) : 0;
+    const magS = alive && M.active ? CFG.magma.shakeAmp * Math.pow(magmaProx(gap, CFG.magma.shakeRange), 2) : 0;
+    fxCamera(T, [fx.shake, ROCKS.shake, finalS, magS]);
     const m = Math.floor(P.dist);
     if (m !== shown) { shown = m; $dist.textContent = '距離：' + m + 'm'; }
   }
@@ -98,7 +88,7 @@
   bindInput(); bindSound();
   addEventListener('keydown', e => { if (e.code === 'KeyR' && !e.repeat && M.phase !== 'playing') restart(); });
   // 確認用：状態の読み取りと、1 フレーム進める口。dropRock(size, x, z, warn?) = 指定位置へ今すぐ噴石を落とす（warn は着弾までの秒の上書き）
-  window.GAME = { G, P, M, KEYS, CFG, dino, WORLD, VOL, SND, RS, OB, OBS, ROCKS, MAG, get fx() { return fx; },
+  window.GAME = { G, P, M, KEYS, CFG, FXS, FXV, dino, WORLD, VOL, SND, RS, OB, OBS, ROCKS, MAG, get fx() { return fx; },
     step: dt => { update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera); },
     restart,
     dropRock: (size, x, z, warn) => spawnRock(RS, size, x, z, null, warn),
@@ -106,7 +96,9 @@
   let last = performance.now();
   (function loop(now) {
     const dt = Math.max(0, Math.min(CFG.dt.max, (now - last) / 1000)); last = now;
-    update(dt); WORLD.renderer.render(WORLD.scene, WORLD.camera);
+    if (fxHitstopStep(FXS, dt)) { /* hitstop: game time paused, rendering continues */ }
+    else update(dt);
+    WORLD.renderer.render(WORLD.scene, WORLD.camera);
     requestAnimationFrame(loop);
   })(last);
 })();
